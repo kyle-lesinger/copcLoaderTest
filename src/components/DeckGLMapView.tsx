@@ -632,35 +632,37 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       }
     }, [])
 
-    // Get subsample rate based on zoom level - minimum 50% of points at all zooms
+    // Get subsample rate based on zoom level - progressive LOD for smooth zooming
     const getSubsampleRate = useCallback((zoom: number, groundModeActive: boolean, totalPoints: number): number => {
       // Always show all points in ground mode for maximum detail
       if (groundModeActive) return 1
 
-      // For standard mode: subsample based on zoom level AND dataset size
-      // Goal: Keep rendered points under ~500K for performance and avoid crashes
-      // Very large datasets (>10M points) need aggressive subsampling
+      // PROGRESSIVE LOD: As you zoom in, show more detail
+      // Goal: Fast initial load, then progressive refinement as user zooms
+      // Target ~100-300K points at far zoom, scaling up to full detail when zoomed in
 
-      if (totalPoints > 10_000_000) {
-        // VERY LARGE datasets (10M+ points) - aggressive subsampling for performance
+      if (totalPoints > 5_000_000) {
+        // Large datasets (5M+ points) - aggressive subsampling at far zoom
         // GPS time sorting ensures we still see the orbital track even with heavy subsampling
-        if (zoom < 2) return 100       // 1% of points (~350K) - global overview
-        if (zoom < 4) return 50        // 2% of points (~700K) - continental view
-        if (zoom < 6) return 25        // 4% of points (~1.4M) - regional view
-        if (zoom < 8) return 10        // 10% of points (~3.5M) - detailed view
-        if (zoom < 10) return 5        // 20% of points (~7M) - high detail
-        if (zoom < 12) return 2        // 50% of points (~17.5M) - very detailed
-        return 1                       // 100% of points at zoom 12+ - full detail
-      } else if (totalPoints > 5_000_000) {
-        // Large datasets (5M-10M points)
-        if (zoom < 5) return 10        // 10% of points
+        if (zoom < 3) return 100       // 1% of points (~50K) - world view, very fast
+        if (zoom < 5) return 50        // 2% of points (~100K) - continental view
+        if (zoom < 7) return 25        // 4% of points (~200K) - regional view
+        if (zoom < 9) return 10        // 10% of points (~500K) - city view
+        if (zoom < 11) return 5        // 20% of points (~1M) - neighborhood view
+        if (zoom < 13) return 2        // 50% of points (~2.5M) - street view
+        return 1                       // 100% of points at zoom 13+ - full detail
+      } else if (totalPoints > 1_000_000) {
+        // Medium datasets (1M-5M points)
+        if (zoom < 5) return 20        // 5% of points
+        if (zoom < 7) return 10        // 10% of points
+        if (zoom < 9) return 5         // 20% of points
+        if (zoom < 11) return 2        // 50% of points
+        return 1                       // All points at zoom 11+
+      } else {
+        // Small datasets (<1M points)
         if (zoom < 7) return 5         // 20% of points
         if (zoom < 9) return 2         // 50% of points
         return 1                       // All points at zoom 9+
-      } else {
-        // Medium datasets (<5M points)
-        if (zoom < 7) return 2         // 50% of points
-        return 1                       // All points at zoom 7+
       }
     }, [])
 
