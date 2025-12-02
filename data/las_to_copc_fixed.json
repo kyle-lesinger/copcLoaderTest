@@ -1,0 +1,33 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "INPUT.las"
+    },
+    {
+      "type": "filters.stats",
+      "dimensions": "X,Y,Z,Intensity"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "ReturnNumber[:]=1",
+      "where": "ReturnNumber == 0"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "NumberOfReturns[:]=1"
+    },
+    {
+      "type": "writers.copc",
+      "filename": "OUTPUT.copc.laz",
+      "extra_dims": "backscatter_532=float64,backscatter_1064=float64",
+      "a_srs": "EPSG:4326+5773",
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "scale_x": 0.000001,
+      "scale_y": 0.000001,
+      "scale_z": 0.001
+    }
+  ]
+}

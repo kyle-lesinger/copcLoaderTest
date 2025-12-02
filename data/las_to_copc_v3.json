@@ -1,0 +1,30 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "INPUT.las"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "ReturnNumber[:]=1",
+      "where": "ReturnNumber == 0"
+    },
+    {
+      "type": "filters.assign",
+      "assignment": "NumberOfReturns[:]=1"
+    },
+    {
+      "type": "writers.copc",
+      "filename": "OUTPUT.copc.laz",
+      "forward": "all",
+      "a_srs": "EPSG:4326",
+      "offset_x": -180,
+      "offset_y": -90,
+      "offset_z": -5,
+      "scale_x": 1e-8,
+      "scale_y": 1e-8,
+      "scale_z": 0.001,
+      "comp_spatialreference": "EPSG:4326"
+    }
+  ]
+}

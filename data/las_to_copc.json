@@ -1,0 +1,24 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "INPUT.las"
+    },
+    {
+      "type": "filters.stats",
+      "dimensions": "X,Y,Z,Intensity"
+    },
+    {
+      "type": "writers.copc",
+      "filename": "OUTPUT.copc.laz",
+      "forward": "all",
+      "a_srs": "EPSG:4326",
+      "scale_x": 0.0001,
+      "scale_y": 0.0001,
+      "scale_z": 0.001,
+      "offset_x": "auto",
+      "offset_y": "auto",
+      "offset_z": "auto"
+    }
+  ]
+}
