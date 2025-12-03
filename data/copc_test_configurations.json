@@ -1,0 +1,732 @@
+{
+  "metadata": {
+    "description": "COPC Loading Test Configurations for CALIPSO Visualization",
+    "created": "2025-12-02",
+    "target_file": "CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz",
+    "spatial_filter": {
+      "latitude_range": [-20, 20],
+      "longitude_range": [-30, 30],
+      "description": "Equatorial region focusing on tropical atmospheric features"
+    },
+    "purpose": "Find optimal loading parameters for real-time visualization performance"
+  },
+
+  "test_configurations": [
+    {
+      "test_id": "T001",
+      "name": "Minimal - Very Low Detail",
+      "max_depth": 0,
+      "point_budget": 100000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 100,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Initial overview, fastest loading"
+    },
+    {
+      "test_id": "T002",
+      "name": "Low Detail - Root + Level 1",
+      "max_depth": 1,
+      "point_budget": 250000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 50,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Quick preview with some spatial detail"
+    },
+    {
+      "test_id": "T003",
+      "name": "Medium Detail - Depth 2",
+      "max_depth": 2,
+      "point_budget": 500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 25,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Good balance for interactive exploration"
+    },
+    {
+      "test_id": "T004",
+      "name": "High Detail - Depth 3",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Detailed view for analysis"
+    },
+    {
+      "test_id": "T005",
+      "name": "Very High Detail - Depth 4",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 5,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Maximum detail, may impact performance"
+    },
+    {
+      "test_id": "T006",
+      "name": "Ultra Detail - Depth 5",
+      "max_depth": 5,
+      "point_budget": 5000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 2,
+      "decimation": "none",
+      "expected_fps": "15-30",
+      "use_case": "Scientific analysis, expect slowdown"
+    },
+    {
+      "test_id": "T007",
+      "name": "Maximum Detail - All Levels",
+      "max_depth": 10,
+      "point_budget": 10000000,
+      "lod_strategy": "frustum_only",
+      "lod_threshold": 0,
+      "decimation": "none",
+      "expected_fps": "5-15",
+      "use_case": "Stress test, likely too slow"
+    },
+    {
+      "test_id": "T008",
+      "name": "Budget Limited - 500K points",
+      "max_depth": 10,
+      "point_budget": 500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 20,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Strict performance target"
+    },
+    {
+      "test_id": "T009",
+      "name": "Budget Limited - 1M points",
+      "max_depth": 10,
+      "point_budget": 1000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 15,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Good performance target"
+    },
+    {
+      "test_id": "T010",
+      "name": "Budget Limited - 2M points",
+      "max_depth": 10,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Balanced performance"
+    },
+    {
+      "test_id": "T011",
+      "name": "Budget Limited - 3M points",
+      "max_depth": 10,
+      "point_budget": 3000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 8,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "High detail with acceptable FPS"
+    },
+    {
+      "test_id": "T012",
+      "name": "Budget Limited - 5M points",
+      "max_depth": 10,
+      "point_budget": 5000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 5,
+      "decimation": "none",
+      "expected_fps": "30",
+      "use_case": "Maximum detail while maintaining 30 FPS"
+    },
+    {
+      "test_id": "T013",
+      "name": "Frustum Only - Depth 3",
+      "max_depth": 3,
+      "point_budget": 2000000,
+      "lod_strategy": "frustum_only",
+      "lod_threshold": 0,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Only load visible nodes"
+    },
+    {
+      "test_id": "T014",
+      "name": "Frustum + Distance - Depth 3",
+      "max_depth": 3,
+      "point_budget": 2000000,
+      "lod_strategy": "frustum_and_distance",
+      "lod_threshold": 15,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Combined culling strategy"
+    },
+    {
+      "test_id": "T015",
+      "name": "Screen Space Error - SSE 1.0",
+      "max_depth": 10,
+      "point_budget": 5000000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 1.0,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Adaptive detail based on screen pixels"
+    },
+    {
+      "test_id": "T016",
+      "name": "Screen Space Error - SSE 2.0",
+      "max_depth": 10,
+      "point_budget": 3000000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 2.0,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Less aggressive SSE"
+    },
+    {
+      "test_id": "T017",
+      "name": "Screen Space Error - SSE 4.0",
+      "max_depth": 10,
+      "point_budget": 1500000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 4.0,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Conservative SSE for performance"
+    },
+    {
+      "test_id": "T018",
+      "name": "Progressive Load - Fast",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "progressive",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Load root first, refine progressively",
+      "progressive_settings": {
+        "initial_depth": 0,
+        "refine_interval_ms": 100,
+        "max_nodes_per_frame": 5
+      }
+    },
+    {
+      "test_id": "T019",
+      "name": "Progressive Load - Balanced",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "progressive",
+      "lod_threshold": 8,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Balanced progressive refinement",
+      "progressive_settings": {
+        "initial_depth": 1,
+        "refine_interval_ms": 200,
+        "max_nodes_per_frame": 3
+      }
+    },
+    {
+      "test_id": "T020",
+      "name": "Progressive Load - Detailed",
+      "max_depth": 5,
+      "point_budget": 3000000,
+      "lod_strategy": "progressive",
+      "lod_threshold": 5,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Detailed progressive loading",
+      "progressive_settings": {
+        "initial_depth": 1,
+        "refine_interval_ms": 300,
+        "max_nodes_per_frame": 2
+      }
+    },
+    {
+      "test_id": "T021",
+      "name": "Decimation - Every 2nd Point",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "regular_2",
+      "expected_fps": "60",
+      "use_case": "50% point reduction for performance"
+    },
+    {
+      "test_id": "T022",
+      "name": "Decimation - Every 3rd Point",
+      "max_depth": 5,
+      "point_budget": 3000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 8,
+      "decimation": "regular_3",
+      "expected_fps": "60",
+      "use_case": "67% point reduction for high depth"
+    },
+    {
+      "test_id": "T023",
+      "name": "Decimation - Random 50%",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "random_0.5",
+      "expected_fps": "60",
+      "use_case": "Random sampling for better distribution"
+    },
+    {
+      "test_id": "T024",
+      "name": "Decimation - Random 70%",
+      "max_depth": 5,
+      "point_budget": 3000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 8,
+      "decimation": "random_0.7",
+      "expected_fps": "60",
+      "use_case": "Aggressive random sampling"
+    },
+    {
+      "test_id": "T025",
+      "name": "Near Camera Focus - Tight",
+      "max_depth": 5,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_weighted",
+      "lod_threshold": 5,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "High detail near camera, low detail far",
+      "distance_weights": {
+        "near_distance": 5,
+        "far_distance": 50,
+        "near_depth": 5,
+        "far_depth": 1
+      }
+    },
+    {
+      "test_id": "T026",
+      "name": "Near Camera Focus - Wide",
+      "max_depth": 5,
+      "point_budget": 2500000,
+      "lod_strategy": "distance_weighted",
+      "lod_threshold": 8,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Wider near-camera detail range",
+      "distance_weights": {
+        "near_distance": 10,
+        "far_distance": 100,
+        "near_depth": 5,
+        "far_depth": 2
+      }
+    },
+    {
+      "test_id": "T027",
+      "name": "Mobile Optimized - Low",
+      "max_depth": 2,
+      "point_budget": 300000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 30,
+      "decimation": "regular_2",
+      "expected_fps": "60",
+      "use_case": "Mobile devices with limited GPU"
+    },
+    {
+      "test_id": "T028",
+      "name": "Mobile Optimized - Medium",
+      "max_depth": 3,
+      "point_budget": 500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 20,
+      "decimation": "random_0.5",
+      "expected_fps": "45-60",
+      "use_case": "Modern mobile devices"
+    },
+    {
+      "test_id": "T029",
+      "name": "Desktop Optimized - Standard",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 2.0,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Standard desktop GPU"
+    },
+    {
+      "test_id": "T030",
+      "name": "Desktop Optimized - High End",
+      "max_depth": 5,
+      "point_budget": 5000000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 1.0,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "High-end desktop GPU (RTX 3080+)"
+    },
+    {
+      "test_id": "T031",
+      "name": "Balanced - Conservative",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "frustum_and_distance",
+      "lod_threshold": 15,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Safe default for unknown hardware"
+    },
+    {
+      "test_id": "T032",
+      "name": "Balanced - Moderate",
+      "max_depth": 4,
+      "point_budget": 1500000,
+      "lod_strategy": "frustum_and_distance",
+      "lod_threshold": 12,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Good default for most users"
+    },
+    {
+      "test_id": "T033",
+      "name": "Balanced - Aggressive",
+      "max_depth": 4,
+      "point_budget": 2500000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 1.5,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Push quality while maintaining smoothness"
+    },
+    {
+      "test_id": "T034",
+      "name": "Altitude Focused - Surface Only",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Focus on low altitude (0-10km)",
+      "altitude_filter": {
+        "min_altitude_km": 0,
+        "max_altitude_km": 10
+      }
+    },
+    {
+      "test_id": "T035",
+      "name": "Altitude Focused - Troposphere",
+      "max_depth": 4,
+      "point_budget": 1500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Troposphere analysis (0-15km)",
+      "altitude_filter": {
+        "min_altitude_km": 0,
+        "max_altitude_km": 15
+      }
+    },
+    {
+      "test_id": "T036",
+      "name": "Altitude Focused - Stratosphere",
+      "max_depth": 4,
+      "point_budget": 1500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Stratosphere analysis (15-30km)",
+      "altitude_filter": {
+        "min_altitude_km": 15,
+        "max_altitude_km": 30
+      }
+    },
+    {
+      "test_id": "T037",
+      "name": "Altitude Focused - Full Column",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Full atmospheric column (0-40km)",
+      "altitude_filter": {
+        "min_altitude_km": 0,
+        "max_altitude_km": 40
+      }
+    },
+    {
+      "test_id": "T038",
+      "name": "Backscatter Threshold - Clouds Only",
+      "max_depth": 4,
+      "point_budget": 1000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "Filter for cloud features (high backscatter)",
+      "backscatter_filter": {
+        "min_backscatter_532": 0.001,
+        "max_backscatter_532": 3.0
+      }
+    },
+    {
+      "test_id": "T039",
+      "name": "Backscatter Threshold - Aerosols",
+      "max_depth": 4,
+      "point_budget": 1500000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Filter for aerosol layers (medium backscatter)",
+      "backscatter_filter": {
+        "min_backscatter_532": 0.0001,
+        "max_backscatter_532": 0.01
+      }
+    },
+    {
+      "test_id": "T040",
+      "name": "Adaptive - Start Low, Refine",
+      "max_depth": 5,
+      "point_budget": 3000000,
+      "lod_strategy": "adaptive",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "Variable",
+      "use_case": "Automatically adjust based on FPS",
+      "adaptive_settings": {
+        "target_fps": 45,
+        "min_depth": 2,
+        "max_depth": 5,
+        "min_budget": 500000,
+        "max_budget": 3000000,
+        "adjustment_interval_ms": 1000
+      }
+    },
+    {
+      "test_id": "T041",
+      "name": "Prefetch Enabled - Aggressive",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Prefetch neighboring nodes for smooth navigation",
+      "prefetch_settings": {
+        "enabled": true,
+        "prefetch_radius": 2,
+        "prefetch_depth_delta": 1,
+        "max_prefetch_nodes": 20
+      }
+    },
+    {
+      "test_id": "T042",
+      "name": "Prefetch Enabled - Conservative",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Limited prefetching for memory management",
+      "prefetch_settings": {
+        "enabled": true,
+        "prefetch_radius": 1,
+        "prefetch_depth_delta": 0,
+        "max_prefetch_nodes": 10
+      }
+    },
+    {
+      "test_id": "T043",
+      "name": "Cache Heavy - Large Memory",
+      "max_depth": 5,
+      "point_budget": 5000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 8,
+      "decimation": "none",
+      "expected_fps": "30-45",
+      "use_case": "Keep many nodes in memory (16GB+ RAM)",
+      "cache_settings": {
+        "max_cached_nodes": 1000,
+        "max_cached_points": 10000000,
+        "unload_distance_threshold": 200
+      }
+    },
+    {
+      "test_id": "T044",
+      "name": "Cache Light - Limited Memory",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 15,
+      "decimation": "regular_2",
+      "expected_fps": "60",
+      "use_case": "Aggressive unloading for low memory (4GB RAM)",
+      "cache_settings": {
+        "max_cached_nodes": 100,
+        "max_cached_points": 2000000,
+        "unload_distance_threshold": 50
+      }
+    },
+    {
+      "test_id": "T045",
+      "name": "Scientific Analysis - Quality Priority",
+      "max_depth": 6,
+      "point_budget": 10000000,
+      "lod_strategy": "frustum_only",
+      "lod_threshold": 0,
+      "decimation": "none",
+      "expected_fps": "15-30",
+      "use_case": "Maximum quality for publication figures",
+      "render_settings": {
+        "point_size": 1,
+        "anti_aliasing": true,
+        "high_precision_colors": true
+      }
+    },
+    {
+      "test_id": "T046",
+      "name": "Real-time Demo - Performance Priority",
+      "max_depth": 3,
+      "point_budget": 750000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 20,
+      "decimation": "random_0.5",
+      "expected_fps": "60",
+      "use_case": "Guaranteed 60 FPS for presentations",
+      "render_settings": {
+        "point_size": 3,
+        "anti_aliasing": false,
+        "high_precision_colors": false
+      }
+    },
+    {
+      "test_id": "T047",
+      "name": "Hybrid - Distance + Backscatter",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "distance_based",
+      "lod_threshold": 10,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "Load dense points for high backscatter areas",
+      "hybrid_settings": {
+        "high_backscatter_threshold": 0.01,
+        "high_backscatter_depth_boost": 2,
+        "low_backscatter_decimation": "regular_3"
+      }
+    },
+    {
+      "test_id": "T048",
+      "name": "Time-based Progressive",
+      "max_depth": 5,
+      "point_budget": 3000000,
+      "lod_strategy": "progressive",
+      "lod_threshold": 8,
+      "decimation": "none",
+      "expected_fps": "Variable",
+      "use_case": "Load over 3 seconds, prioritize by importance",
+      "progressive_settings": {
+        "total_load_time_ms": 3000,
+        "initial_depth": 0,
+        "prioritize_by": "backscatter_variance"
+      }
+    },
+    {
+      "test_id": "T049",
+      "name": "Recommended Default - Fast",
+      "max_depth": 3,
+      "point_budget": 1000000,
+      "lod_strategy": "frustum_and_distance",
+      "lod_threshold": 15,
+      "decimation": "none",
+      "expected_fps": "60",
+      "use_case": "RECOMMENDED: Fast loading, good quality",
+      "recommended": true,
+      "performance_tier": "fast"
+    },
+    {
+      "test_id": "T050",
+      "name": "Recommended Default - Balanced",
+      "max_depth": 4,
+      "point_budget": 2000000,
+      "lod_strategy": "screen_space_error",
+      "lod_threshold": 2.0,
+      "decimation": "none",
+      "expected_fps": "45-60",
+      "use_case": "RECOMMENDED: Best balance of quality and performance",
+      "recommended": true,
+      "performance_tier": "balanced"
+    }
+  ],
+
+  "preset_configurations": {
+    "file_1_equatorial": {
+      "filename": "CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz",
+      "latitude_range": [-20, 20],
+      "longitude_range": [-30, 30],
+      "description": "Equatorial region test area",
+      "estimated_points_in_region": "~5-10 million",
+      "recommended_tests": ["T049", "T050", "T031", "T032", "T033"]
+    }
+  },
+
+  "testing_instructions": {
+    "setup": [
+      "1. Load the COPC file: CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz",
+      "2. Apply spatial filter: lat [-20, 20], lon [-30, 30]",
+      "3. Set up FPS monitoring in your viewer",
+      "4. Prepare to record: FPS, load time, visual quality, memory usage"
+    ],
+    "execution": [
+      "1. Start with test T001 (minimal configuration)",
+      "2. For each test, apply the configuration parameters",
+      "3. Allow 5-10 seconds for initial load",
+      "4. Navigate the view (pan, zoom, rotate)",
+      "5. Record metrics in the results section below"
+    ],
+    "metrics_to_record": [
+      "initial_load_time_ms",
+      "average_fps",
+      "min_fps",
+      "max_fps",
+      "memory_usage_mb",
+      "visual_quality_score (1-10)",
+      "navigation_smoothness_score (1-10)",
+      "visible_point_count",
+      "loaded_node_count",
+      "notes"
+    ]
+  },
+
+  "results_template": {
+    "test_id": "T001",
+    "timestamp": "2025-12-02T00:00:00Z",
+    "hardware": {
+      "gpu": "e.g., Apple M1, NVIDIA RTX 3080",
+      "ram_gb": 16,
+      "browser": "Chrome 120"
+    },
+    "metrics": {
+      "initial_load_time_ms": 0,
+      "average_fps": 0,
+      "min_fps": 0,
+      "max_fps": 0,
+      "memory_usage_mb": 0,
+      "visual_quality_score": 0,
+      "navigation_smoothness_score": 0,
+      "visible_point_count": 0,
+      "loaded_node_count": 0
+    },
+    "notes": ""
+  }
+}

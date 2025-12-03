@@ -17,11 +17,32 @@ export default defineConfig({
       // Include specific modules
       protocolImports: true,
     }),
-    // Custom plugin to handle HTTP range requests for COPC files
+    // Custom plugin to handle HTTP range requests for COPC files and WASM MIME types
     {
       name: 'range-request-handler',
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
+          // Handle WASM files with correct MIME type
+          if (req.url?.endsWith('.wasm')) {
+            // Try multiple possible WASM file locations
+            const urlPath = req.url.replace(/^\//, '')
+            const possiblePaths = [
+              path.join(server.config.root, 'node_modules', urlPath),
+              path.join(server.config.root, 'public', urlPath),
+              path.join(server.config.root, urlPath)
+            ]
+
+            for (const wasmPath of possiblePaths) {
+              if (fs.existsSync(wasmPath)) {
+                res.setHeader('Content-Type', 'application/wasm')
+                res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+                res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+                fs.createReadStream(wasmPath).pipe(res)
+                return
+              }
+            }
+          }
+
           if (req.url?.includes('.copc.laz') || req.url?.includes('.laz') || req.url?.includes('.las')) {
             const rangeHeader = req.headers.range
             if (!rangeHeader) {
@@ -30,7 +51,16 @@ export default defineConfig({
 
             // Extract file path from URL
             const urlPath = req.url.split('?')[0]
-            const filePath = path.join(server.config.root, 'public', urlPath)
+
+            // Try multiple possible file locations
+            let filePath: string
+            if (urlPath.startsWith('/data/final/tiled')) {
+              // Direct path to data/final/tiled directory (outside public)
+              filePath = path.join(server.config.root, urlPath)
+            } else {
+              // Default: look in public directory
+              filePath = path.join(server.config.root, 'public', urlPath)
+            }
 
             // Check if file exists
             if (!fs.existsSync(filePath)) {

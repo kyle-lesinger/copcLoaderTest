@@ -1,0 +1,53 @@
+.test-config-selector-inline {
+  width: 100%;
+}
+
+.test-config-dropdown {
+  margin-bottom: 12px;
+}
+
+.test-config-dropdown select {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.test-config-panel-inline {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+
+.test-config-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.config-row span:first-child {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.config-row span:last-child {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.config-use-case {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(74, 158, 255, 0.1);
+  border-left: 3px solid #4a9eff;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  border-radius: 3px;
+}

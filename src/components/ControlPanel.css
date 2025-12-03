@@ -184,3 +184,9 @@
 .text-muted {
   color: rgba(255, 255, 255, 0.5);
 }
+
+.test-config-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}

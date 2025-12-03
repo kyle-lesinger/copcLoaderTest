@@ -1,6 +1,11 @@
 import { BandType } from '../App'
 
 /**
+ * File mode - single or tiled COPC files
+ */
+export type FileMode = 'single' | 'tiled'
+
+/**
  * File search result containing found files and metadata
  */
 export interface FileSearchResult {
@@ -10,6 +15,7 @@ export interface FileSearchResult {
   startDate: Date
   endDate: Date
   foundCount: number
+  fileMode?: FileMode
 }
 
 /**
@@ -19,6 +25,7 @@ export interface FileSearchConfig {
   baseDirectory?: string // Base directory or S3 bucket URL
   apiEndpoint?: string   // API endpoint for file listing
   fileList?: string[]    // Predefined list of files to search through
+  fileMode?: FileMode    // File mode: 'single' or 'tiled' (default: 'tiled')
 }
 
 /**
@@ -52,10 +59,12 @@ export async function searchCalipsoFiles(
   // Perform search based on available configuration
   let foundFiles: string[] = []
 
+  const fileMode = config.fileMode || 'tiled' // Default to tiled mode
+
   if (config.apiEndpoint) {
     foundFiles = await searchViaAPI(config.apiEndpoint, bandType, start, end)
   } else if (config.fileList) {
-    foundFiles = searchInFileList(config.fileList, bandType, start, end)
+    foundFiles = searchInFileList(config.fileList, bandType, start, end, fileMode)
   } else if (config.baseDirectory) {
     // For future implementation: search in directory or S3 bucket
     console.warn('[FileSearch] ⚠️  Directory search not yet implemented')
@@ -96,7 +105,8 @@ export async function searchCalipsoFiles(
     bandType,
     startDate: start,
     endDate: end,
-    foundCount: foundFiles.length
+    foundCount: foundFiles.length,
+    fileMode
   }
 }
 
@@ -179,10 +189,12 @@ function searchInFileList(
   fileList: string[],
   bandType: BandType,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  fileMode: FileMode = 'tiled'
 ): string[] {
   console.log(`[FileSearch] 📋 Searching through ${fileList.length} available COPC files`)
   console.log(`[FileSearch] 📁 File source: Configured file list (see getAvailableFileList() in fileSearch.ts)`)
+  console.log(`[FileSearch] 🗂️  File mode: ${fileMode}`)
   console.log(`[FileSearch] 💡 To search different files, update getAvailableFileList() in src/utils/fileSearch.ts`)
 
   const results: string[] = []
@@ -197,7 +209,8 @@ function searchInFileList(
     }
 
     // Extract date and band from COPC filename
-    // Format: CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz
+    // Format: CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz (single)
+    // Format: CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD_tile_south.copc.laz (tiled)
     const match = filename.match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})Z([DN])/)
     if (!match) {
       continue
@@ -252,22 +265,52 @@ export function parseCalipsoFilename(filename: string): {
  * - API endpoint that lists files from server
  * - S3 bucket listing
  * - Dynamic directory scan
+ *
+ * @param fileMode - 'single' for single COPC files (globe-spanning, may have corrupted octree),
+ *                   'tiled' for latitude-tiled COPC files (4 tiles per timestamp, recommended)
  */
-export function getAvailableFileList(): string[] {
+export function getAvailableFileList(fileMode: FileMode = 'tiled'): string[] {
   // Using COPC format (.copc.laz files) for efficient HTTP range-based loading
   // COPC supports loading only specific octree nodes, not the entire file
-  const dataDirectory = '/potree_data' // COPC data location
 
-  return [
-    // CALIPSO Level 1 data from 2023-06-30
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz`, // Day band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T17-37-28ZN.copc.laz`, // Night band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T18-23-08ZD.copc.laz`, // Day band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T19-15-53ZN.copc.laz`, // Night band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T20-01-33ZD.copc.laz`, // Day band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T20-54-18ZN.copc.laz`, // Night band
-    `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T21-39-53ZD.copc.laz`, // Day band
-  ]
+  if (fileMode === 'single') {
+    // DEPRECATED: Single files have corrupted octree cube bounds for globe-spanning data
+    const dataDirectory = '/data/final/tiled'
+    return [
+      // CALIPSO Level 1 data from 2023-06-30
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz`, // Day band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T17-37-28ZN.copc.laz`, // Night band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T18-23-08ZD.copc.laz`, // Day band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T19-15-53ZN.copc.laz`, // Night band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T20-01-33ZD.copc.laz`, // Day band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T20-54-18ZN.copc.laz`, // Night band
+      `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T21-39-53ZD.copc.laz`, // Day band
+    ]
+  } else {
+    // RECOMMENDED: Tiled files with valid octree cube bounds (4 latitude tiles per timestamp)
+    const dataDirectory = '/data/final/tiled'
+    const tiles = ['south', 'south_mid', 'north_mid', 'north'] // 4 latitude tiles
+
+    // For each timestamp, we have 4 tiles (south, south_mid, north_mid, north)
+    const basenames = [
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD', // Day band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T17-37-28ZN', // Night band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T18-23-08ZD', // Day band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T19-15-53ZN', // Night band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T20-01-33ZD', // Day band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T20-54-18ZN', // Night band
+      'CAL_LID_L1-Standard-V4-51.2023-06-30T21-39-53ZD', // Day band
+    ]
+
+    const tiledFiles: string[] = []
+    for (const basename of basenames) {
+      for (const tile of tiles) {
+        tiledFiles.push(`${dataDirectory}/${basename}_tile_${tile}.copc.laz`)
+      }
+    }
+
+    return tiledFiles
+  }
 }
 
 /**

@@ -565,7 +565,9 @@ export async function loadCOPCFileWithSpatialBounds(
   spatialBounds?: COPCSpatialBounds,
   onProgress?: (progress: number) => void,
   intensityThreshold?: number,  // Only load points with intensity >= this value (for progressive loading)
-  aoiPolygon?: LatLon[] | null  // Optional AOI polygon for precise filtering (in addition to bounding box)
+  aoiPolygon?: LatLon[] | null,  // Optional AOI polygon for precise filtering (in addition to bounding box)
+  maxDepth?: number,  // Optional max octree depth override (from test config)
+  maxNodes?: number   // Optional max nodes override (from test config)
 ): Promise<PointCloudData & { intensityPercentiles?: IntensityPercentiles }> {
   console.log(`[copcLoader] 🚀 Loading COPC file with spatial bounds: ${url}`)
 
@@ -625,13 +627,108 @@ export async function loadCOPCFileWithSpatialBounds(
     spacing: copc.info.spacing
   })
 
+  // Debug: Log copc.header properties to understand what's available
+  console.log(`[copcLoader] 🔍 DEBUG: copc.header properties:`, Object.keys(copc.header))
+  console.log(`[copcLoader] 🔍 DEBUG: copc.header.min:`, copc.header.min)
+  console.log(`[copcLoader] 🔍 DEBUG: copc.header.max:`, copc.header.max)
+  console.log(`[copcLoader] 🔍 DEBUG: copc.header.scale:`, copc.header.scale)
+  console.log(`[copcLoader] 🔍 DEBUG: copc.header.offset:`, copc.header.offset)
+  console.log(`[copcLoader] 🔍 DEBUG: copc.info.cube (octree root bounds):`, copc.info.cube)
+  console.log(`[copcLoader] 🔍 DEBUG: copc.info.spacing:`, copc.info.spacing)
+
+  // CRITICAL FIX: Validate and reconstruct cube bounds if corrupted
+  // The cube should contain [minX, minY, minZ, maxX, maxY, maxZ] in geographic coordinates
+  // If coordinates are outside valid ranges, the COPC conversion was corrupted
+  const cube = copc.info.cube
+  const cubeMinLon = cube[0]
+  const cubeMaxLon = cube[3]
+  const cubeMinLat = cube[1]
+  const cubeMaxLat = cube[4]
+
+  const cubeValid = (
+    cubeMinLon >= -180 && cubeMaxLon <= 180 &&
+    cubeMinLat >= -90 && cubeMaxLat <= 90 &&
+    cubeMinLon < cubeMaxLon &&
+    cubeMinLat < cubeMaxLat
+  )
+
+  if (!cubeValid) {
+    console.warn(`[copcLoader] 🚨 CORRUPTED OCTREE CUBE DETECTED!`)
+    console.warn(`[copcLoader] 📊 Invalid cube bounds:`, {
+      lon: `${cubeMinLon.toFixed(2)}° to ${cubeMaxLon.toFixed(2)}°`,
+      lat: `${cubeMinLat.toFixed(2)}° to ${cubeMaxLat.toFixed(2)}°`
+    })
+    console.warn(`[copcLoader] 🔧 Reconstructing cube from header.min/max...`)
+
+    // Reconstruct valid cube bounds from header
+    // For CALIPSO track data spanning globe, use actual data bounds directly
+    // The octree node calculation will still work with non-cubic bounds
+    copc.info.cube = [
+      copc.header.min[0],  // minX (lon)
+      copc.header.min[1],  // minY (lat)
+      copc.header.min[2],  // minZ (alt)
+      copc.header.max[0],  // maxX (lon)
+      copc.header.max[1],  // maxY (lat)
+      copc.header.max[2]   // maxZ (alt)
+    ]
+
+    console.log(`[copcLoader] ✅ Reconstructed cube bounds:`, {
+      lon: `${copc.info.cube[0].toFixed(2)}° to ${copc.info.cube[3].toFixed(2)}°`,
+      lat: `${copc.info.cube[1].toFixed(2)}° to ${copc.info.cube[4].toFixed(2)}°`,
+      alt: `${copc.info.cube[2].toFixed(3)} to ${copc.info.cube[5].toFixed(3)} km`
+    })
+    console.log(`[copcLoader] 💡 This fixes corrupted octree metadata from CRS reprojection`)
+  } else {
+    console.log(`[copcLoader] ✅ Cube bounds validation passed - octree metadata is valid`)
+  }
+
+  // ROOT NODE INTERSECTION CHECK
+  // Check if the root node (entire file bounds) intersects with the requested spatial bounds
+  // This allows us to skip loading tiles that don't overlap with the area of interest
+  if (spatialBounds) {
+    const rootMinLon = copc.info.cube[0]
+    const rootMaxLon = copc.info.cube[3]
+    const rootMinLat = copc.info.cube[1]
+    const rootMaxLat = copc.info.cube[4]
+
+    // Check for bounding box intersection
+    const intersects = !(
+      rootMaxLon < spatialBounds.minLon ||  // Root is entirely west of bounds
+      rootMinLon > spatialBounds.maxLon ||  // Root is entirely east of bounds
+      rootMaxLat < spatialBounds.minLat ||  // Root is entirely south of bounds
+      rootMinLat > spatialBounds.maxLat     // Root is entirely north of bounds
+    )
+
+    if (!intersects) {
+      console.log(`[copcLoader] ⏭️  SKIPPING FILE - Root node does not intersect with spatial bounds`)
+      console.log(`[copcLoader] 📍 File bounds: Lon ${rootMinLon.toFixed(2)}° to ${rootMaxLon.toFixed(2)}°, Lat ${rootMinLat.toFixed(2)}° to ${rootMaxLat.toFixed(2)}°`)
+      console.log(`[copcLoader] 🎯 Filter bounds: Lon ${spatialBounds.minLon.toFixed(2)}° to ${spatialBounds.maxLon.toFixed(2)}°, Lat ${spatialBounds.minLat.toFixed(2)}° to ${spatialBounds.maxLat.toFixed(2)}°`)
+
+      // Return empty point cloud data
+      return {
+        points: [],
+        colors: [],
+        intensities: [],
+        classifications: [],
+        minIntensity: 0,
+        maxIntensity: 0
+      }
+    }
+
+    console.log(`[copcLoader] ✅ Root node intersection check passed - file overlaps with spatial bounds`)
+    console.log(`[copcLoader] 📍 File bounds: Lon ${rootMinLon.toFixed(2)}° to ${rootMaxLon.toFixed(2)}°, Lat ${rootMinLat.toFixed(2)}° to ${rootMaxLat.toFixed(2)}°`)
+  }
+
   // Log file bounding box in geographic coordinates
-  const fileMinLon = copc.header.min[0] * copc.header.scale[0] + copc.header.offset[0]
-  const fileMaxLon = copc.header.max[0] * copc.header.scale[0] + copc.header.offset[0]
-  const fileMinLat = copc.header.min[1] * copc.header.scale[1] + copc.header.offset[1]
-  const fileMaxLat = copc.header.max[1] * copc.header.scale[1] + copc.header.offset[1]
-  const fileMinAlt = copc.header.min[2] * copc.header.scale[2] + copc.header.offset[2]
-  const fileMaxAlt = copc.header.max[2] * copc.header.scale[2] + copc.header.offset[2]
+  // IMPORTANT: copc.header.min/max are ALREADY in geographic coordinates!
+  // They are stored as Float64 values in the LAZ header (bytes 179-226)
+  // DO NOT apply scale/offset to these values - they are not integer coordinates
+  const fileMinLon = copc.header.min[0]
+  const fileMaxLon = copc.header.max[0]
+  const fileMinLat = copc.header.min[1]
+  const fileMaxLat = copc.header.max[1]
+  const fileMinAlt = copc.header.min[2]
+  const fileMaxAlt = copc.header.max[2]
 
   console.log(`[copcLoader] 📊 File Geographic Bounds:`)
   console.log(`  Lon: ${fileMinLon.toFixed(2)}° to ${fileMaxLon.toFixed(2)}°`)
@@ -642,28 +739,51 @@ export async function loadCOPCFileWithSpatialBounds(
   console.log(`  Lat: ${spatialBounds.minLat}° to ${spatialBounds.maxLat}°`)
   console.log(`  Alt: ${spatialBounds.minAlt} to ${spatialBounds.maxAlt} km`)
 
-  // Check if file even intersects the spatial filter
-  const fileIntersectsFilter = !(
-    fileMaxLon < spatialBounds.minLon ||
-    fileMinLon > spatialBounds.maxLon ||
-    fileMaxLat < spatialBounds.minLat ||
-    fileMinLat > spatialBounds.maxLat ||
-    fileMaxAlt < spatialBounds.minAlt ||
-    fileMinAlt > spatialBounds.maxAlt
+  // Check if file bounds appear valid (not placeholder/incorrect values)
+  const fileBoundsValid = (
+    Math.abs(fileMaxLon - fileMinLon) > 0.01 &&
+    Math.abs(fileMaxLat - fileMinLat) > 0.01 &&
+    fileMinLon >= -180 && fileMaxLon <= 180 &&
+    fileMinLat >= -90 && fileMaxLat <= 90
   )
 
-  if (!fileIntersectsFilter) {
-    console.log(`[copcLoader] ⚠️  WARNING: Entire file is outside spatial bounds!`)
-    console.log(`[copcLoader] 💡 This CALIPSO orbit pass does not cover the requested geographic region`)
-    console.log(`[copcLoader] 💡 Try different date/time or disable spatial filter to see where data is located`)
-  } else {
-    console.log(`[copcLoader] ✅ File intersects spatial filter - proceeding with octree traversal`)
+  if (!fileBoundsValid) {
+    console.warn(`[copcLoader] ⚠️  WARNING: File bounds appear invalid or placeholder (near-zero range)`)
+    console.warn(`[copcLoader] 🔧 COPC metadata may be incorrect - DISABLING node-level spatial filtering`)
+    console.warn(`[copcLoader] 💡 Will load ALL nodes and filter at point-level instead`)
+  }
+
+  // Check if file even intersects the spatial filter (only if bounds are valid)
+  let fileIntersectsFilter = true // Default to true if bounds invalid
+  if (fileBoundsValid) {
+    fileIntersectsFilter = !(
+      fileMaxLon < spatialBounds.minLon ||
+      fileMinLon > spatialBounds.maxLon ||
+      fileMaxLat < spatialBounds.minLat ||
+      fileMinLat > spatialBounds.maxLat ||
+      fileMaxAlt < spatialBounds.minAlt ||
+      fileMinAlt > spatialBounds.maxAlt
+    )
+
+    if (!fileIntersectsFilter) {
+      console.log(`[copcLoader] ⚠️  WARNING: Entire file is outside spatial bounds!`)
+      console.log(`[copcLoader] 💡 This CALIPSO orbit pass does not cover the requested geographic region`)
+      console.log(`[copcLoader] 💡 Try different date/time or disable spatial filter to see where data is located`)
+    } else {
+      console.log(`[copcLoader] ✅ File intersects spatial filter - proceeding with octree traversal`)
+    }
   }
 
   if (onProgress) onProgress(20)
 
   // Helper function to check if node bounds intersect spatial filter
   const nodeIntersectsBounds = (node: any): boolean => {
+    // If file bounds are invalid, skip node-level filtering entirely
+    // We'll filter at the point level instead where we have actual coordinates
+    if (!fileBoundsValid) {
+      return true  // Accept all nodes, filter points instead
+    }
+
     // Get node bounds in scaled coordinates
     const cube = copc.info.cube
     const spacing = copc.info.spacing
@@ -676,6 +796,9 @@ export async function loadCOPCFileWithSpatialBounds(
     const nodeSize = spacing / Math.pow(2, depth)
 
     // Calculate node bounds in octree coordinate space
+    // IMPORTANT: copc.info.cube is ALREADY in geographic coordinates!
+    // Unlike point coordinates which need scaling, the octree cube bounds
+    // from the COPC VLR are pre-computed geographic coordinates
     const nodeMin = [
       cube[0] + node.x * nodeSize,
       cube[1] + node.y * nodeSize,
@@ -687,13 +810,13 @@ export async function loadCOPCFileWithSpatialBounds(
       nodeMin[2] + nodeSize
     ]
 
-    // Convert to geographic coordinates using scale/offset
-    const minLon = nodeMin[0] * copc.header.scale[0] + copc.header.offset[0]
-    const maxLon = nodeMax[0] * copc.header.scale[0] + copc.header.offset[0]
-    const minLat = nodeMin[1] * copc.header.scale[1] + copc.header.offset[1]
-    const maxLat = nodeMax[1] * copc.header.scale[1] + copc.header.offset[1]
-    const minAlt = nodeMin[2] * copc.header.scale[2] + copc.header.offset[2]
-    const maxAlt = nodeMax[2] * copc.header.scale[2] + copc.header.offset[2]
+    // Node bounds are ALREADY in geographic coordinates - don't apply scale/offset!
+    const minLon = nodeMin[0]
+    const maxLon = nodeMax[0]
+    const minLat = nodeMin[1]
+    const maxLat = nodeMax[1]
+    const minAlt = nodeMin[2]
+    const maxAlt = nodeMax[2]
 
     // Check intersection with spatial bounds
     const intersects = !(
@@ -704,6 +827,17 @@ export async function loadCOPCFileWithSpatialBounds(
       maxAlt < spatialBounds.minAlt ||
       minAlt > spatialBounds.maxAlt
     )
+
+    // Debug: Log first 3 node bounds for debugging
+    if (node.key === '0-0-0-0' || node.key === '1-0-0-0' || node.key === '1-1-0-0') {
+      console.log(`[copcLoader] 🔍 DEBUG Node ${node.key}:`)
+      console.log(`  cube:`, cube)
+      console.log(`  nodeSize:`, nodeSize)
+      console.log(`  nodeMin (before scale):`, nodeMin)
+      console.log(`  nodeMax (before scale):`, nodeMax)
+      console.log(`  Geographic bounds: Lon ${minLon.toFixed(2)}° to ${maxLon.toFixed(2)}°, Lat ${minLat.toFixed(2)}° to ${maxLat.toFixed(2)}°`)
+      console.log(`  Intersects filter:`, intersects)
+    }
 
     return intersects
   }
@@ -742,7 +876,14 @@ export async function loadCOPCFileWithSpatialBounds(
   let MAX_NODES: number
   let MAX_DEPTH: number
 
-  if (boundsVolume > VOLUME_THRESHOLD_LARGE) {
+  // Check if test configuration overrides are provided
+  if (maxDepth !== undefined && maxNodes !== undefined) {
+    MAX_NODES = maxNodes
+    MAX_DEPTH = maxDepth
+    console.log(`[copcLoader] 🧪 Using TEST CONFIGURATION overrides:`)
+    console.log(`[copcLoader]   • MAX_NODES: ${MAX_NODES}`)
+    console.log(`[copcLoader]   • MAX_DEPTH: ${MAX_DEPTH}`)
+  } else if (boundsVolume > VOLUME_THRESHOLD_LARGE) {
     // Large area - prioritize speed
     MAX_NODES = 500
     MAX_DEPTH = 8
@@ -762,62 +903,99 @@ export async function loadCOPCFileWithSpatialBounds(
     console.log(`[copcLoader] 🔍 Using high-detail loading: ${MAX_NODES} nodes, depth ${MAX_DEPTH}`)
   }
 
-  // Recursive function to traverse octree and collect nodes that intersect bounds
+  // Collect nodes to load
   const nodesToLoad: Array<[string, any]> = []
   let totalNodesChecked = 0
   let nodesSkipped = 0
   let depthLimitedNodes = 0
 
-  const traverseAndCollectNodes = async (hierarchyPage: any) => {
-    const { nodes, pages } = await Copc.loadHierarchyPage(getter, hierarchyPage)
+  // When file bounds are invalid, use a VERY simple strategy: just load root + depth 1
+  // This avoids slow traversal and gives us a quick preview
+  if (!fileBoundsValid) {
+    console.log(`[copcLoader] 🎯 Invalid bounds detected - using ULTRA simplified loading`)
+    console.log(`[copcLoader] 📊 Loading root + depth 1 nodes ONLY (fast preview)`)
+    console.log(`[copcLoader] 💡 For full data, COPC file metadata needs to be fixed`)
 
-    for (const [key, node] of Object.entries(nodes)) {
+    // Load root hierarchy page (depth 0)
+    const { nodes: rootNodes, pages: rootPages } = await Copc.loadHierarchyPage(getter, copc.info.rootHierarchyPage)
+
+    console.log(`[copcLoader] 📦 Loaded root page: ${Object.keys(rootNodes).length} nodes at depth 0`)
+
+    // Add root nodes
+    for (const [key, node] of Object.entries(rootNodes)) {
       totalNodesChecked++
-
-      // Check if we've hit max nodes limit
-      if (nodesToLoad.length >= MAX_NODES) {
-        console.log(`[copcLoader] ⚠️  Reached max nodes limit (${MAX_NODES}) - stopping traversal`)
-        return
-      }
-
-      // Add key to node for bounds checking
       ;(node as any).key = key
       const [depthStr, xStr, yStr, zStr] = key.split('-').map(Number)
       ;(node as any).x = xStr
       ;(node as any).y = yStr
       ;(node as any).z = zStr
+      nodesToLoad.push([key, node])
+    }
 
-      const depth = depthStr
+    console.log(`[copcLoader] ✅ Collected ${nodesToLoad.length} nodes (root only - FAST!)`)
+  } else {
+    // Normal traversal with spatial bounds filtering
+    console.log(`[copcLoader] 🌳 Starting breadth-first octree traversal with spatial filtering`)
+    console.log(`[copcLoader] 🎯 LOD settings: MAX_DEPTH=${MAX_DEPTH}, MAX_NODES=${MAX_NODES}`)
 
-      // Check depth limit (LOD optimization)
-      if (depth > MAX_DEPTH) {
-        depthLimitedNodes++
-        continue  // Skip nodes deeper than MAX_DEPTH
+    const queue: any[] = [copc.info.rootHierarchyPage]
+    let pagesProcessed = 0
+
+    while (queue.length > 0 && nodesToLoad.length < MAX_NODES) {
+      const hierarchyPage = queue.shift()!
+      const { nodes, pages } = await Copc.loadHierarchyPage(getter, hierarchyPage)
+      pagesProcessed++
+
+      // Process all nodes in this hierarchy page
+      for (const [key, node] of Object.entries(nodes)) {
+        totalNodesChecked++
+
+        // Check if we've hit max nodes limit
+        if (nodesToLoad.length >= MAX_NODES) {
+          console.log(`[copcLoader] ⚠️  Reached max nodes limit (${MAX_NODES}) - stopping traversal`)
+          break
+        }
+
+        // Add key to node for bounds checking
+        ;(node as any).key = key
+        const [depthStr, xStr, yStr, zStr] = key.split('-').map(Number)
+        ;(node as any).x = xStr
+        ;(node as any).y = yStr
+        ;(node as any).z = zStr
+
+        const depth = depthStr
+
+        // Check depth limit (LOD optimization)
+        if (depth > MAX_DEPTH) {
+          depthLimitedNodes++
+          continue
+        }
+
+        // Check if this node intersects spatial bounds
+        if (nodeIntersectsBounds(node)) {
+          // Node intersects - add it to load list
+          nodesToLoad.push([key, node])
+
+          // Only queue child pages if we haven't hit depth limit
+          if (depth < MAX_DEPTH) {
+            for (const childPage of Object.values(pages)) {
+              queue.push(childPage)
+            }
+          }
+        } else {
+          // Node doesn't intersect - skip entire subtree
+          nodesSkipped++
+        }
       }
 
-      // Check if this node intersects spatial bounds
-      if (nodeIntersectsBounds(node)) {
-        // Node intersects - add it to load list
-        nodesToLoad.push([key, node])
-
-        // Only recurse to child pages if we haven't hit depth limit
-        if (depth < MAX_DEPTH) {
-          for (const [childKey, childPage] of Object.entries(pages)) {
-            await traverseAndCollectNodes(childPage as any)
-          }
-        }
-      } else {
-        // Node doesn't intersect - skip entire subtree
-        nodesSkipped++
+      // Early exit if we've reached max nodes
+      if (nodesToLoad.length >= MAX_NODES) {
+        break
       }
     }
+
+    console.log(`[copcLoader] 📄 Processed ${pagesProcessed} hierarchy pages`)
   }
-
-  // Start traversal from root
-  console.log(`[copcLoader] 🌳 Starting recursive octree traversal with spatial filter`)
-  console.log(`[copcLoader] 🎯 LOD settings: MAX_DEPTH=${MAX_DEPTH}, MAX_NODES=${MAX_NODES}`)
-
-  await traverseAndCollectNodes(copc.info.rootHierarchyPage)
 
   console.log(`[copcLoader] ✅ Found ${nodesToLoad.length} nodes intersecting spatial bounds (depth ≤ ${MAX_DEPTH})`)
   console.log(`[copcLoader] 📉 Skipped ${nodesSkipped} nodes outside bounds, ${depthLimitedNodes} beyond depth limit`)
@@ -840,21 +1018,43 @@ export async function loadCOPCFileWithSpatialBounds(
 
   console.log(`[copcLoader] 📦 Loading point data from ${nodesToLoad.length} nodes...`)
 
-  // Load each node using COPC library (handles decompression internally)
-  for (let i = 0; i < nodesToLoad.length; i++) {
-    const [key, node] = nodesToLoad[i]
+  // Load nodes in parallel batches for better performance
+  const BATCH_SIZE = 50 // Load 50 nodes at a time in parallel
+  const batches = []
+  for (let i = 0; i < nodesToLoad.length; i += BATCH_SIZE) {
+    batches.push(nodesToLoad.slice(i, i + BATCH_SIZE))
+  }
 
-    try {
-      // Use COPC library to load this specific node's point data
-      const view = await Copc.loadPointDataView(getter, copc, node)
+  console.log(`[copcLoader] ⚡ Loading ${batches.length} batches of ${BATCH_SIZE} nodes in parallel`)
+
+  let processedNodes = 0
+
+  // Process batches sequentially, but nodes within each batch in parallel
+  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+    const batch = batches[batchIdx]
+
+    // Load all nodes in this batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(async ([key, node]) => {
+        try {
+          const view = await Copc.loadPointDataView(getter, copc, node)
+          return { key, node, view, success: true }
+        } catch (error) {
+          console.error(`[copcLoader] ❌ Failed to load node ${key}:`, error)
+          return { key, node, view: null, success: false }
+        }
+      })
+    )
+
+    // Process points from all successfully loaded nodes in this batch
+    for (const result of batchResults) {
+      if (!result.success || !result.view) continue
+
+      const { key, node, view } = result
+      processedNodes++
 
       // Get point count for this node
       const nodePointCount = (node as any).pointCount || 0
-
-      // Only log progress every 100 nodes to avoid console spam
-      if (i % 100 === 0 || i === nodesToLoad.length - 1) {
-        console.log(`[copcLoader] 📦 Progress: ${i + 1}/${nodesToLoad.length} nodes (${((i + 1) / nodesToLoad.length * 100).toFixed(1)}%)`)
-      }
 
       // Create getters for dimensions
       const getX = view.getter('X')
@@ -938,7 +1138,9 @@ export async function loadCOPCFileWithSpatialBounds(
         totalPointsLoaded++
       }
 
-      // Log filtering statistics for this node
+      // DISABLED: Log filtering statistics for this node (too verbose)
+      // Keep track of stats but don't log every node
+      /*
       if (invalidCount > 0 || outOfBoundsCount > 0 || filteredCount > 0) {
         console.warn(`[copcLoader] 📊 Node ${key} filtering summary:`)
         if (invalidCount > 0) {
@@ -955,12 +1157,14 @@ export async function loadCOPCFileWithSpatialBounds(
         }
         console.warn(`  • Valid points kept: ${totalPointsLoaded}`)
       }
+      */
+    }
 
-      if (onProgress) {
-        onProgress(60 + ((i + 1) / nodesToLoad.length) * 35)
-      }
-    } catch (error) {
-      console.error(`[copcLoader] ❌ Failed to load node ${key}:`, error)
+    // Log progress after each batch
+    console.log(`[copcLoader] 📦 Batch ${batchIdx + 1}/${batches.length} complete: ${processedNodes}/${nodesToLoad.length} nodes processed (${(processedNodes / nodesToLoad.length * 100).toFixed(1)}%)`)
+
+    if (onProgress) {
+      onProgress(60 + (processedNodes / nodesToLoad.length) * 35)
     }
   }
 
@@ -1037,9 +1241,12 @@ export async function loadCOPCFileWithSpatialBounds(
     }
   }
 
-  // Calculate intensity percentiles for progressive loading
+  // DISABLED: Calculate intensity percentiles for progressive loading
+  // Percentile calculation was causing performance issues (sorting large arrays)
   // Only calculate if no threshold was applied (i.e., this is the initial load)
   let intensityPercentiles: IntensityPercentiles | undefined
+  // Disabled for performance - sorting millions of points is too slow
+  /*
   if (intensityThreshold === undefined && totalPointsLoaded > 0) {
     // Sort intensity values to find percentiles
     const sortedIntensities = Array.from(intensitiesArray).sort((a, b) => a - b)
@@ -1063,6 +1270,8 @@ export async function loadCOPCFileWithSpatialBounds(
     console.log(`  • 90th percentile (p90): ${intensityPercentiles.p90.toFixed(4)} km⁻¹·sr⁻¹`)
     console.log(`  💡 These thresholds enable progressive loading based on zoom level`)
   }
+  */
+  console.log(`[copcLoader] ⚡ Percentile calculation DISABLED for performance`)
 
   if (onProgress) onProgress(100)
 

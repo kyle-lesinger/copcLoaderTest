@@ -1,6 +1,7 @@
 import { ColorMode, Colormap, DataRange, ViewMode } from '../App'
 import { getColormapName } from '../utils/colormaps'
 import ColorBar from './ColorBar'
+import TestConfigSelector, { TestConfig } from './TestConfigSelector'
 import './ControlPanel.css'
 
 interface ControlPanelProps {
@@ -25,6 +26,9 @@ interface ControlPanelProps {
   isGroundModeActive: boolean
   onToggleGroundMode: () => void
   groundCameraPosition: { lat: number, lon: number } | null
+  // Test config controls
+  onTestConfigSelect: (config: TestConfig) => void
+  currentTestId?: string
 }
 
 export default function ControlPanel({
@@ -46,7 +50,9 @@ export default function ControlPanel({
   aoiPointCount,
   isGroundModeActive,
   onToggleGroundMode,
-  groundCameraPosition
+  groundCameraPosition,
+  onTestConfigSelect,
+  currentTestId
 }: ControlPanelProps) {
   const colormaps: Colormap[] = ['viridis', 'plasma', 'turbo', 'coolwarm', 'jet', 'grayscale', 'calipso']
 
@@ -191,6 +197,15 @@ export default function ControlPanel({
             Click on globe to add vertices
           </p>
         )}
+      </div>
+
+      {/* Test Configuration Selector */}
+      <div className="test-config-section">
+        <h4>Test Configurations:</h4>
+        <TestConfigSelector
+          onConfigSelect={onTestConfigSelect}
+          currentTestId={currentTestId}
+        />
       </div>
     </div>
   )

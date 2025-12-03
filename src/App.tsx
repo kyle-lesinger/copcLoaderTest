@@ -6,7 +6,8 @@ import ControlsInfo from './components/ControlsInfo'
 import DataInfo from './components/DataInfo'
 import { Colormap } from './utils/colormaps'
 import { LatLon } from './utils/aoiSelector'
-import { searchCalipsoFiles, FileSearchResult, getAvailableFileList } from './utils/fileSearch'
+import { searchCalipsoFiles, FileSearchResult, getAvailableFileList, FileMode } from './utils/fileSearch'
+import { TestConfig } from './components/TestConfigSelector'
 import './App.css'
 
 export type ColorMode = 'elevation' | 'intensity' | 'classification'
@@ -49,9 +50,10 @@ function App() {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([])
   const [foundFiles, setFoundFiles] = useState<FileSearchResult | null>(null)
   const [spatialFilterApplyCounter, setSpatialFilterApplyCounter] = useState(0)
+  const [fileSearchTrigger, setFileSearchTrigger] = useState(0) // Counter to force file search re-run
 
   const [colorMode, setColorMode] = useState<ColorMode>('intensity')
-  const [colormap, setColormap] = useState<Colormap>('plasma')
+  const [colormap, setColormap] = useState<Colormap>('calipso')
   const [pointSize, setPointSize] = useState(2.0)
   const [viewMode] = useState<ViewMode>('2d') // Fixed to 2D mode only
 
@@ -113,6 +115,11 @@ function App() {
   // Ground mode state
   const [isGroundModeActive, setIsGroundModeActive] = useState(false)
   const [groundCameraPosition, setGroundCameraPosition] = useState<{ lat: number, lon: number } | null>(null)
+
+  // Test configuration state
+  const [activeTestConfig, setActiveTestConfig] = useState<string | undefined>(undefined)
+  const [testConfigMaxDepth, setTestConfigMaxDepth] = useState<number | undefined>(undefined)
+  const [testConfigMaxNodes, setTestConfigMaxNodes] = useState<number | undefined>(undefined)
 
   const handleToggleDrawAOI = () => {
     setIsDrawingAOI(!isDrawingAOI)
@@ -302,6 +309,83 @@ function App() {
     setGroundCameraPosition({ lat, lon })
   }
 
+  const handleTestConfigSelect = (config: TestConfig) => {
+    console.log(`[App] 🧪 Applying test configuration: ${config.testId}`)
+
+    // Clear existing data first to force a fresh reload
+    console.log(`[App] 🗑️  Clearing existing data...`)
+    setSelectedFiles([])
+    setFoundFiles(null)
+
+    // Reset data range to force camera recenter on new data load
+    setGlobalDataRange({ elevation: null, intensity: null })
+    setDataRange({ elevation: null, intensity: null })
+
+    // Small delay to ensure React processes the state update
+    setTimeout(() => {
+      console.log(`[App] 🔄 Loading new configuration...`)
+
+      // Update point size
+      setPointSize(config.pointSize)
+
+      // Update spatial bounds filter with test config bounds
+      setSpatialBoundsFilter(prev => ({
+        ...prev,
+        enabled: true,  // Enable spatial filter
+        useUSBounds: false,
+        useAOIBounds: false,
+        minLat: config.bounds.minLat,
+        maxLat: config.bounds.maxLat,
+        minLon: config.bounds.minLon,
+        maxLon: config.bounds.maxLon,
+        minAlt: 0,
+        maxAlt: 40
+      }))
+
+      // Log the configuration parameters
+      console.log(`[App] 📁 Target file: ${config.filename}`)
+      console.log(`[App] 🎯 Max Depth: ${config.maxDepth}`)
+      console.log(`[App] 💰 Point Budget: ${config.pointBudget.toLocaleString()}`)
+      console.log(`[App] 🎨 LOD Strategy: ${config.lodStrategy}`)
+      console.log(`[App] 📏 LOD Threshold: ${config.lodThreshold}`)
+      console.log(`[App] ⚡ Expected FPS: ${config.expectedFps}`)
+
+      // Store active test config ID and parameters
+      setActiveTestConfig(config.testId)
+      setTestConfigMaxDepth(config.maxDepth)
+
+      // Convert pointBudget to maxNodes (rough estimate: assume avg 30k points per node)
+      const avgPointsPerNode = 30000
+      const estimatedMaxNodes = Math.ceil(config.pointBudget / avgPointsPerNode)
+      setTestConfigMaxNodes(estimatedMaxNodes)
+
+      console.log(`[App] 🔢 Calculated maxNodes: ${estimatedMaxNodes} (from pointBudget: ${config.pointBudget.toLocaleString()})`)
+
+      // Load only the specific test file(s) specified in the config
+      // For tiled mode, this will be 4 tiles for the single timestamp
+      const availableFiles = getAvailableFileList()
+      const baseFilename = config.filename.replace('.copc.laz', '')
+
+      // Filter for files matching this specific timestamp
+      // In tiled mode: get all 4 tiles for this timestamp
+      // In single mode: get just the one file
+      const testFiles = availableFiles.filter(file => file.includes(baseFilename))
+
+      console.log(`[App] 🎯 Loading ${testFiles.length} file(s) for test:`)
+      testFiles.forEach((file, idx) => {
+        console.log(`  ${idx + 1}. ${file.split('/').pop()}`)
+      })
+
+      // Directly set the files to load (bypassing date range filter)
+      setSelectedFiles(testFiles)
+
+      // Trigger spatial filter apply to process these files
+      setTimeout(() => {
+        setSpatialFilterApplyCounter(c => c + 1)
+      }, 100)
+    }, 100)
+  }
+
   const handleGlobalDataRangeUpdate = useCallback((range: DataRange) => {
     // Set both global range (for validation) and current range (for display)
     setGlobalDataRange(range)
@@ -339,12 +423,14 @@ function App() {
         // Search for files using the file search utility
         // Uses the configured file list from fileSearch.ts
         // In production, replace with API endpoint or S3 listing
+        const fileMode: FileMode = 'tiled' // Use tiled mode by default (recommended)
         const result = await searchCalipsoFiles(
           selectedBand,
           dateRangeFilter.startDate,
           dateRangeFilter.endDate,
           {
-            fileList: getAvailableFileList() // Update file list in fileSearch.ts
+            fileList: getAvailableFileList(fileMode),
+            fileMode
           }
         )
 
@@ -364,7 +450,7 @@ function App() {
     }
 
     performSearch()
-  }, [selectedBand, dateRangeFilter.enabled, dateRangeFilter.startDate, dateRangeFilter.endDate])
+  }, [selectedBand, dateRangeFilter.enabled, dateRangeFilter.startDate, dateRangeFilter.endDate, fileSearchTrigger])
 
   // Load files ONLY when spatial bounds filter is explicitly applied (counter increments)
   // Clear files when spatial bounds filter is disabled
@@ -425,6 +511,8 @@ function App() {
         isGroundModeActive={isGroundModeActive}
         groundCameraPosition={groundCameraPosition}
         onGroundCameraPositionSet={handleGroundCameraPositionSet}
+        testConfigMaxDepth={testConfigMaxDepth}
+        testConfigMaxNodes={testConfigMaxNodes}
       />
 
       <FilterPanel
@@ -460,6 +548,8 @@ function App() {
         isGroundModeActive={isGroundModeActive}
         onToggleGroundMode={handleToggleGroundMode}
         groundCameraPosition={groundCameraPosition}
+        onTestConfigSelect={handleTestConfigSelect}
+        currentTestId={activeTestConfig}
       />
 
       <DataInfo dataRange={dataRange} />

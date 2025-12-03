@@ -21,7 +21,7 @@ export interface MapBackgroundHandle {
 }
 
 const MapBackground = forwardRef<MapBackgroundHandle, MapBackgroundProps>(
-  ({ center, zoom = 3 }, ref) => {
+  ({ center, zoom = 6 }, ref) => {
     const mapContainer = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
 

@@ -35,9 +35,11 @@ interface PointCloudViewerProps {
   isGroundModeActive?: boolean
   groundCameraPosition?: { lat: number, lon: number } | null
   onGroundCameraPositionSet?: (lat: number, lon: number) => void
+  testConfigMaxDepth?: number  // Optional test configuration override
+  testConfigMaxNodes?: number  // Optional test configuration override
 }
 
-export default function PointCloudViewer({ files, colorMode, colormap, pointSize, viewMode, onGlobalDataRangeUpdate, onDataRangeUpdate, aoiPolygon, showScatterPlotTrigger, onAOIDataReady, onPolygonUpdate, isDrawingAOI, heightFilter, spatialBoundsFilter, isGroundModeActive, groundCameraPosition, onGroundCameraPositionSet }: PointCloudViewerProps) {
+export default function PointCloudViewer({ files, colorMode, colormap, pointSize, viewMode, onGlobalDataRangeUpdate, onDataRangeUpdate, aoiPolygon, showScatterPlotTrigger, onAOIDataReady, onPolygonUpdate, isDrawingAOI, heightFilter, spatialBoundsFilter, isGroundModeActive, groundCameraPosition, onGroundCameraPositionSet, testConfigMaxDepth, testConfigMaxNodes }: PointCloudViewerProps) {
   // const globeRef = useRef<GlobeViewerHandle>(null) // Removed - 2D only
   const deckMapRef = useRef<DeckGLMapViewHandle>(null)
   const pointCloudsRef = useRef<THREE.Points[]>([]) // For 2D mode only
@@ -77,7 +79,7 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
   } | null>(null)
   const [currentIntensityThreshold, setCurrentIntensityThreshold] = useState<number | undefined>(undefined)
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0])
-  const [mapZoom, setMapZoom] = useState<number>(5)
+  const [mapZoom, setMapZoom] = useState<number>(6)
   const [initialCameraDistance, setInitialCameraDistance] = useState<number>(2.5) // Calculated based on data extent
   const [dataLoaded, setDataLoaded] = useState(false)
   const [dataVersion, setDataVersion] = useState(0) // Increment to trigger DeckGLMapView update
@@ -737,7 +739,7 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
 
     // Log file loading with filter context
     console.log('╔═══════════════════════════════════════════════════════════╗')
-    console.log('║        📂 LOADING POTREE FILES WITH ACTIVE FILTERS        ║')
+    console.log('║         📂 LOADING COPC FILES WITH ACTIVE FILTERS         ║')
     console.log('╚═══════════════════════════════════════════════════════════╝')
     console.log(`[PointCloudViewer] 📁 Loading ${files.length} file(s):`)
     files.forEach((file, idx) => {
@@ -787,11 +789,20 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
             })
           },
           undefined, // intensityThreshold
-          spatialBoundsFilter?.enabled && spatialBoundsFilter?.useAOIBounds ? aoiPolygon : null // Pass AOI polygon when using AOI bounds
+          spatialBoundsFilter?.enabled && spatialBoundsFilter?.useAOIBounds ? aoiPolygon : null, // Pass AOI polygon when using AOI bounds
+          testConfigMaxDepth, // Test config max depth override
+          testConfigMaxNodes  // Test config max nodes override
         )
       )
     )
-      .then((allData) => {
+      .then((loadedData) => {
+        // Filter out empty results (tiles with no points)
+        const allData = loadedData.filter(data =>
+          data && data.positions && data.positions.length > 0
+        )
+
+        console.log(`[PointCloudViewer] 📊 Filtered results: ${allData.length} of ${loadedData.length} tiles have data`)
+
         dataRef.current = allData
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -832,21 +843,31 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         let maxIntPhysical = -Infinity
 
         allData.forEach((data) => {
+          // Skip if data is invalid or empty
+          if (!data || !data.positions || !data.intensities) {
+            console.warn('[PointCloudViewer] ⚠️  Skipping invalid data entry:', data)
+            return
+          }
+
           // Elevation range from positions (Z coordinate = altitude in km)
-          for (let i = 0; i < data.positions.length; i += 3) {
-            const alt = data.positions[i + 2]
-            minElev = Math.min(minElev, alt)
-            maxElev = Math.max(maxElev, alt)
+          if (data.positions.length > 0) {
+            for (let i = 0; i < data.positions.length; i += 3) {
+              const alt = data.positions[i + 2]
+              minElev = Math.min(minElev, alt)
+              maxElev = Math.max(maxElev, alt)
+            }
           }
 
           // Intensity range - convert from LAS encoding to physical units
           // CALIPSO encoding: intensity = (physical + 0.1) * 10000
           // Physical units: km⁻¹·sr⁻¹
-          for (let i = 0; i < data.intensities.length; i++) {
-            const lasIntensity = data.intensities[i]
-            const physical = (lasIntensity / 10000.0) - 0.1
-            minIntPhysical = Math.min(minIntPhysical, physical)
-            maxIntPhysical = Math.max(maxIntPhysical, physical)
+          if (data.intensities.length > 0) {
+            for (let i = 0; i < data.intensities.length; i++) {
+              const lasIntensity = data.intensities[i]
+              const physical = (lasIntensity / 10000.0) - 0.1
+              minIntPhysical = Math.min(minIntPhysical, physical)
+              maxIntPhysical = Math.max(maxIntPhysical, physical)
+            }
           }
         })
 
@@ -918,30 +939,17 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         // Use fixed distance of 1.8 for best detail (decimation 1:2, ~2.3M points)
         const calculatedDistance = 1.8
 
-        // Check if we have a valid camera state from switching from 3D view
-        // If so, skip auto-zoom calculation to preserve the camera state
-        if (viewMode === '2d' && last2DMapStateRef.current) {
-          console.log(`[PointCloudViewer] 📍 Skipping auto-zoom - using camera state from 3D→2D switch: center (${last2DMapStateRef.current.center[0].toFixed(4)}, ${last2DMapStateRef.current.center[1].toFixed(4)}), zoom ${last2DMapStateRef.current.zoom.toFixed(4)}`)
-          // Keep the current mapCenter and mapZoom that were set during view switch
-          setInitialCameraDistance(calculatedDistance)
-        } else {
-          // Calculate appropriate zoom level to fit the data extent
-          // MapLibre zoom levels: zoom 0 shows ~360° longitude, each level halves the view
-          // We want to fit the larger extent (with some padding)
-          const maxExtent = Math.max(extentLng, extentLat)
-          const paddingFactor = 1.5 // Add 50% padding around the data
-          const paddedExtent = maxExtent * paddingFactor
+        // Always recenter and zoom to level 9 when data is loaded
+        // Clear last map state to force recenter
+        last2DMapStateRef.current = null
+        const dataZoom = 9
 
-          // Calculate zoom: log2(360 / extent) gives zoom for longitude at equator
-          // Clamp between 2 (world view) and 12 (close up)
-          const calculatedZoom = Math.max(2, Math.min(12, Math.log2(360 / paddedExtent)))
+        console.log(`[PointCloudViewer] 🎯 Data loaded - centering at (${centerLng.toFixed(4)}, ${centerLat.toFixed(4)}), zoom ${dataZoom}`)
+        console.log(`[PointCloudViewer] Data extent: ${extentLng.toFixed(2)}° lng × ${extentLat.toFixed(2)}° lat`)
 
-          console.log(`[PointCloudViewer] Data extent: ${extentLng.toFixed(2)}° lng × ${extentLat.toFixed(2)}° lat, calculated zoom: ${calculatedZoom.toFixed(2)}`)
-
-          setMapCenter([centerLng, centerLat])
-          setMapZoom(calculatedZoom)
-          setInitialCameraDistance(calculatedDistance)
-        }
+        setMapCenter([centerLng, centerLat])
+        setMapZoom(dataZoom)
+        setInitialCameraDistance(calculatedDistance)
 
         // For 2D mode: Data is already stored in dataRef, just update loading states
         console.log(`[PointCloudViewer] 📍 2D mode: Data loaded, skipping THREE.js geometry creation`)
@@ -957,11 +965,11 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         setStats({ points: totalPoints, files: allData.length })
       })
       .catch((err) => {
-        console.error('Error loading Potree files:', err)
-        setError(err.message || 'Failed to load Potree files')
+        console.error('Error loading COPC files:', err)
+        setError(err.message || 'Failed to load COPC files')
         setLoading(false)
       })
-  }, [files, pointSize, onGlobalDataRangeUpdate, onDataRangeUpdate, viewMode, colorMode, colormap, spatialBoundsFilter])
+  }, [files, pointSize, onGlobalDataRangeUpdate, onDataRangeUpdate, viewMode, colorMode, colormap, spatialBoundsFilter, testConfigMaxDepth, testConfigMaxNodes])
 
   // Update LOD managers when spatial bounds filter changes
   useEffect(() => {
@@ -1253,7 +1261,7 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         <div className="loading-overlay">
           <div className="loading-spinner" />
           <div className="loading-text">
-            Loading Potree files... {Math.round(loadingProgress)}%
+            Loading COPC tiles... {Math.round(loadingProgress)}%
           </div>
         </div>
       )}

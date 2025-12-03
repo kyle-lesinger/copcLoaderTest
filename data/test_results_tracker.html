@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COPC Test Results Tracker</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            margin: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #dcdcaa;
+            margin-top: 30px;
+        }
+        .test-selector {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .test-button {
+            background: #3c3c3c;
+            border: 2px solid #555;
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .test-button:hover {
+            background: #4c4c4c;
+            border-color: #4ec9b0;
+        }
+        .test-button.active {
+            background: #264f78;
+            border-color: #569cd6;
+        }
+        .test-button .test-id {
+            color: #569cd6;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .test-button .test-name {
+            color: #d4d4d4;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .test-button .test-fps {
+            color: #b5cea8;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+        .current-config {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid #4ec9b0;
+        }
+        .config-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            padding: 8px 0;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        .config-label {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+        .config-value {
+            color: #ce9178;
+        }
+        .results-form {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            color: #9cdcfe;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #4ec9b0;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        button.secondary {
+            background: #3c3c3c;
+        }
+        button.secondary:hover {
+            background: #4c4c4c;
+        }
+        .results-table {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #3c3c3c;
+            padding: 12px;
+            text-align: left;
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        tr:hover {
+            background: #2d2d30;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .badge-recommended {
+            background: #4ec9b0;
+            color: #1e1e1e;
+        }
+        .badge-60fps {
+            background: #6a9955;
+            color: white;
+        }
+        .badge-30fps {
+            background: #ce9178;
+            color: #1e1e1e;
+        }
+        .badge-slow {
+            background: #f48771;
+            color: #1e1e1e;
+        }
+        .copy-config {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 COPC Visualization Test Suite</h1>
+
+        <div class="test-selector">
+            <h2>Select Test Configuration</h2>
+            <div id="categoryTabs" style="margin-bottom: 15px;"></div>
+            <div id="testGrid" class="test-grid"></div>
+        </div>
+
+        <div class="current-config" id="currentConfig" style="display: none;">
+            <h2>Current Test Configuration</h2>
+            <div id="configDetails"></div>
+            <div class="copy-config">
+                <button onclick="copyConfigToClipboard()">📋 Copy Config to Clipboard</button>
+                <button onclick="applyConfig()" class="secondary">▶️ Apply to Visualization</button>
+            </div>
+        </div>
+
+        <div class="results-form">
+            <h2>Record Test Results</h2>
+            <form id="resultsForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>GPU</label>
+                        <input type="text" id="gpu" placeholder="e.g., Apple M1, RTX 3080">
+                    </div>
+                    <div class="form-group">
+                        <label>RAM (GB)</label>
+                        <input type="number" id="ram" placeholder="16">
+                    </div>
+                    <div class="form-group">
+                        <label>Browser</label>
+                        <input type="text" id="browser" placeholder="Chrome 120">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Initial Load Time (ms)</label>
+                        <input type="number" id="loadTime" placeholder="1500">
+                    </div>
+                    <div class="form-group">
+                        <label>Average FPS</label>
+                        <input type="number" id="avgFps" placeholder="60">
+                    </div>
+                    <div class="form-group">
+                        <label>Min FPS</label>
+                        <input type="number" id="minFps" placeholder="45">
+                    </div>
+                    <div class="form-group">
+                        <label>Max FPS</label>
+                        <input type="number" id="maxFps" placeholder="60">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Memory Usage (MB)</label>
+                        <input type="number" id="memory" placeholder="512">
+                    </div>
+                    <div class="form-group">
+                        <label>Visual Quality (1-10)</label>
+                        <input type="number" id="quality" min="1" max="10" placeholder="8">
+                    </div>
+                    <div class="form-group">
+                        <label>Navigation Smoothness (1-10)</label>
+                        <input type="number" id="smoothness" min="1" max="10" placeholder="9">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Visible Points</label>
+                        <input type="number" id="visiblePoints" placeholder="1000000">
+                    </div>
+                    <div class="form-group">
+                        <label>Loaded Nodes</label>
+                        <input type="number" id="loadedNodes" placeholder="150">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="notes" rows="3" placeholder="Any observations, issues, or recommendations..."></textarea>
+                </div>
+
+                <button type="submit">💾 Save Results</button>
+                <button type="button" class="secondary" onclick="exportResults()">📥 Export to CSV</button>
+            </form>
+        </div>
+
+        <div class="results-table">
+            <h2>Test Results Summary</h2>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Test ID</th>
+                        <th>Name</th>
+                        <th>FPS</th>
+                        <th>Load Time</th>
+                        <th>Quality</th>
+                        <th>Points</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import COPC_TEST_CONFIGS from './copc_browser_test_configs.js';
+
+        let currentTest = null;
+        let testResults = JSON.parse(localStorage.getItem('copcTestResults') || '[]');
+
+        // Categories for organizing tests
+        const categories = {
+            'Recommended': 'RECOMMENDED',
+            'Detail Levels': 'DETAIL_LEVELS',
+            'Point Budget': 'BUDGET_TESTS',
+            'Mobile': 'MOBILE',
+            'Desktop': 'DESKTOP',
+            'Altitude Filters': 'ALTITUDE_FILTERS',
+            'Backscatter': 'BACKSCATTER_FILTERS',
+            'Decimation': 'DECIMATION'
+        };
+
+        let activeCategory = 'Recommended';
+
+        // Initialize
+        function init() {
+            renderCategoryTabs();
+            renderTests();
+            renderResults();
+
+            // Auto-select recommended test
+            selectTest('T050');
+        }
+
+        function renderCategoryTabs() {
+            const tabsDiv = document.getElementById('categoryTabs');
+            tabsDiv.innerHTML = Object.keys(categories).map(cat => `
+                <button
+                    class="secondary"
+                    style="margin-right: 10px; ${activeCategory === cat ? 'background: #0e639c;' : ''}"
+                    onclick="window.switchCategory('${cat}')"
+                >
+                    ${cat}
+                </button>
+            `).join('');
+        }
+
+        window.switchCategory = function(category) {
+            activeCategory = category;
+            renderCategoryTabs();
+            renderTests();
+        };
+
+        function renderTests() {
+            const grid = document.getElementById('testGrid');
+            const categoryKey = categories[activeCategory];
+            const tests = COPC_TEST_CONFIGS[categoryKey];
+
+            grid.innerHTML = Object.entries(tests).map(([key, test]) => {
+                const isActive = currentTest && currentTest.testId === test.testId;
+                const fpsBadge = test.expectedFps >= 60 ? 'badge-60fps' :
+                               test.expectedFps >= 30 ? 'badge-30fps' : 'badge-slow';
+
+                return `
+                    <div class="test-button ${isActive ? 'active' : ''}" onclick="window.selectTest('${test.testId}')">
+                        <div class="test-id">${test.testId}</div>
+                        <div class="test-name">${test.name}</div>
+                        <div class="test-fps">
+                            <span class="badge ${fpsBadge}">${test.expectedFps} FPS</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.selectTest = function(testId) {
+            // Find test in all categories
+            for (const categoryKey of Object.values(categories)) {
+                const tests = COPC_TEST_CONFIGS[categoryKey];
+                for (const test of Object.values(tests)) {
+                    if (test.testId === testId) {
+                        currentTest = { ...test, ...COPC_TEST_CONFIGS.SPATIAL_PRESETS.equatorial };
+                        renderCurrentConfig();
+                        renderTests();
+                        return;
+                    }
+                }
+            }
+        };
+
+        function renderCurrentConfig() {
+            const configDiv = document.getElementById('currentConfig');
+            const detailsDiv = document.getElementById('configDetails');
+
+            if (!currentTest) {
+                configDiv.style.display = 'none';
+                return;
+            }
+
+            configDiv.style.display = 'block';
+
+            detailsDiv.innerHTML = `
+                <div class="config-row">
+                    <div class="config-label">Test ID:</div>
+                    <div class="config-value">${currentTest.testId} - ${currentTest.name}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">File:</div>
+                    <div class="config-value">${currentTest.filename}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Latitude Range:</div>
+                    <div class="config-value">${currentTest.bounds.minLat}° to ${currentTest.bounds.maxLat}°</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Longitude Range:</div>
+                    <div class="config-value">${currentTest.bounds.minLon}° to ${currentTest.bounds.maxLon}°</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Max Depth:</div>
+                    <div class="config-value">${currentTest.maxDepth}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Point Budget:</div>
+                    <div class="config-value">${currentTest.pointBudget.toLocaleString()}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">LOD Strategy:</div>
+                    <div class="config-value">${currentTest.lodStrategy}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">LOD Threshold:</div>
+                    <div class="config-value">${currentTest.lodThreshold}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Point Size:</div>
+                    <div class="config-value">${currentTest.pointSize}px</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Expected FPS:</div>
+                    <div class="config-value">${currentTest.expectedFps}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-label">Use Case:</div>
+                    <div class="config-value">${currentTest.useCase}</div>
+                </div>
+            `;
+        }
+
+        window.copyConfigToClipboard = function() {
+            const config = JSON.stringify(currentTest, null, 2);
+            navigator.clipboard.writeText(config);
+            alert('Configuration copied to clipboard!');
+        };
+
+        window.applyConfig = function() {
+            console.log('Applying configuration:', currentTest);
+            alert(`Apply this configuration in your visualization app:\n\nTest: ${currentTest.name}\nDepth: ${currentTest.maxDepth}\nBudget: ${currentTest.pointBudget}`);
+        };
+
+        // Results form handling
+        document.getElementById('resultsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const result = {
+                testId: currentTest.testId,
+                testName: currentTest.name,
+                timestamp: new Date().toISOString(),
+                gpu: document.getElementById('gpu').value,
+                ram: document.getElementById('ram').value,
+                browser: document.getElementById('browser').value,
+                loadTime: document.getElementById('loadTime').value,
+                avgFps: document.getElementById('avgFps').value,
+                minFps: document.getElementById('minFps').value,
+                maxFps: document.getElementById('maxFps').value,
+                memory: document.getElementById('memory').value,
+                quality: document.getElementById('quality').value,
+                smoothness: document.getElementById('smoothness').value,
+                visiblePoints: document.getElementById('visiblePoints').value,
+                loadedNodes: document.getElementById('loadedNodes').value,
+                notes: document.getElementById('notes').value
+            };
+
+            testResults.push(result);
+            localStorage.setItem('copcTestResults', JSON.stringify(testResults));
+
+            renderResults();
+            this.reset();
+            alert('Results saved!');
+        });
+
+        function renderResults() {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = testResults.map(r => `
+                <tr>
+                    <td>${r.testId}</td>
+                    <td>${r.testName.substring(0, 30)}...</td>
+                    <td>${r.avgFps} (${r.minFps}-${r.maxFps})</td>
+                    <td>${r.loadTime}ms</td>
+                    <td>${r.quality}/10</td>
+                    <td>${Number(r.visiblePoints).toLocaleString()}</td>
+                    <td>${r.notes.substring(0, 30)}...</td>
+                    <td><button class="secondary" onclick="window.deleteResult(${testResults.indexOf(r)})">Delete</button></td>
+                </tr>
+            `).join('');
+        }
+
+        window.deleteResult = function(index) {
+            testResults.splice(index, 1);
+            localStorage.setItem('copcTestResults', JSON.stringify(testResults));
+            renderResults();
+        };
+
+        window.exportResults = function() {
+            const csv = [
+                ['Test ID', 'Test Name', 'GPU', 'RAM', 'Browser', 'Load Time', 'Avg FPS', 'Min FPS', 'Max FPS', 'Memory', 'Quality', 'Smoothness', 'Points', 'Nodes', 'Notes'].join(','),
+                ...testResults.map(r => [
+                    r.testId, r.testName, r.gpu, r.ram, r.browser, r.loadTime, r.avgFps, r.minFps, r.maxFps, r.memory, r.quality, r.smoothness, r.visiblePoints, r.loadedNodes, `"${r.notes}"`
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'copc_test_results.csv';
+            a.click();
+        };
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

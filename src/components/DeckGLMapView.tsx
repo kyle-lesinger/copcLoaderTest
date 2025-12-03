@@ -52,7 +52,7 @@ export interface DeckGLMapViewHandle {
 }
 
 const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
-  ({ center, zoom = 5, data, colorMode, colormap, pointSize, dataVersion, isDrawingAOI, aoiPolygon, onPolygonComplete, isGroundModeActive, groundCameraPosition, onGroundCameraPositionSet, groundModeViewData, intensityPercentiles, onZoomThresholdChange }, ref) => {
+  ({ center, zoom = 6, data, colorMode, colormap, pointSize, dataVersion, isDrawingAOI, aoiPolygon, onPolygonComplete, isGroundModeActive, groundCameraPosition, onGroundCameraPositionSet, groundModeViewData, intensityPercentiles, onZoomThresholdChange }, ref) => {
     const mapContainer = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
     const deckOverlayRef = useRef<MapboxOverlay | null>(null)
@@ -688,9 +688,14 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
     }, [])
 
     // Get subsample rate based on zoom level - progressive LOD for smooth zooming
-    const getSubsampleRate = useCallback((zoom: number, groundModeActive: boolean, totalPoints: number): number => {
-      // Always show all points in ground mode for maximum detail
-      if (groundModeActive) return 1
+    const getSubsampleRate = useCallback((zoom: number, groundModeActive: boolean, cameraSettled: boolean, totalPoints: number): number => {
+      // Only show all points in ground mode AFTER user has clicked a rectangle and camera has settled
+      // This prevents the initial ground mode activation from rendering millions of points before the camera is positioned
+      if (groundModeActive && cameraSettled) return 1
+
+      // At zoom level 10+, show all points within camera frustum (no subsampling)
+      // This will be applied per-point in the rendering loop
+      if (zoom >= 10) return 1
 
       // PROGRESSIVE LOD: As you zoom in, show more detail
       // Goal: Fast initial load, then progressive refinement as user zooms
@@ -703,22 +708,34 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
         if (zoom < 5) return 50        // 2% of points (~100K) - continental view
         if (zoom < 7) return 25        // 4% of points (~200K) - regional view
         if (zoom < 9) return 10        // 10% of points (~500K) - city view
-        if (zoom < 11) return 5        // 20% of points (~1M) - neighborhood view
-        if (zoom < 13) return 2        // 50% of points (~2.5M) - street view
-        return 1                       // 100% of points at zoom 13+ - full detail
+        return 5                       // 20% of points (~1M) at zoom 9-10
       } else if (totalPoints > 1_000_000) {
         // Medium datasets (1M-5M points)
         if (zoom < 5) return 20        // 5% of points
         if (zoom < 7) return 10        // 10% of points
         if (zoom < 9) return 5         // 20% of points
-        if (zoom < 11) return 2        // 50% of points
-        return 1                       // All points at zoom 11+
+        return 2                       // 50% of points at zoom 9-10
       } else {
         // Small datasets (<1M points)
         if (zoom < 7) return 5         // 20% of points
         if (zoom < 9) return 2         // 50% of points
         return 1                       // All points at zoom 9+
       }
+    }, [])
+
+    // Calculate camera frustum bounds based on current view
+    const calculateCameraFrustumBounds = useCallback((): { minLat: number, maxLat: number, minLon: number, maxLon: number } | null => {
+      if (!mapRef.current) return null
+
+      const bounds = mapRef.current.getBounds()
+      const padding = 0.1 // 10% padding to account for pitch and bearing
+
+      const minLat = bounds.getSouth() - padding * (bounds.getNorth() - bounds.getSouth())
+      const maxLat = bounds.getNorth() + padding * (bounds.getNorth() - bounds.getSouth())
+      const minLon = bounds.getWest() - padding * (bounds.getEast() - bounds.getWest())
+      const maxLon = bounds.getEast() + padding * (bounds.getEast() - bounds.getWest())
+
+      return { minLat, maxLat, minLon, maxLon }
     }, [])
 
     // Update deck.gl layers when data or settings change
@@ -728,23 +745,29 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       // Calculate total points in dataset first
       const totalDatasetPoints = data.reduce((sum, dataset) => sum + dataset.positions.length / 3, 0)
 
-      // Get subsample rate based on current zoom level, ground mode, and dataset size
-      const subsampleRate = getSubsampleRate(currentZoom, isGroundModeActiveRef.current, totalDatasetPoints)
-      const useAveraging = isGroundModeActiveRef.current ? false : currentZoom < 9 // No averaging in ground mode
+      // Get subsample rate based on current zoom level, ground mode, camera state, and dataset size
+      const subsampleRate = getSubsampleRate(currentZoom, isGroundModeActiveRef.current, groundModeCameraSettled, totalDatasetPoints)
+      const useAveraging = isGroundModeActiveRef.current && groundModeCameraSettled ? false : currentZoom < 9 // No averaging in ground mode after camera settled
       const neighborCount = 40 // Number of neighbors to average
 
-      // FRUSTUM CULLING DISABLED FOR GROUND MODE
-      // Geographic bounds-based culling doesn't work for ground mode because:
-      // 1. You're looking UP at satellite data from the ground
-      // 2. Visible data can be very far away geographically but still in view due to altitude
-      // 3. Even with 100x extension factors, too much visible data gets culled out
-      // Performance is acceptable rendering all 4.38M points without culling
+      // CAMERA FRUSTUM CULLING: Enable at zoom 10+ to show all points within view
+      // At zoom 10+, subsample rate is 1 (all points), but we apply frustum culling
+      // Points outside camera view are culled, points inside are shown at full detail
       let visibleBounds: { minLat: number, maxLat: number, minLon: number, maxLon: number } | null = null
+
+      if (currentZoom >= 10 && !isGroundModeActiveRef.current) {
+        // Calculate camera frustum bounds
+        visibleBounds = calculateCameraFrustumBounds()
+        if (visibleBounds) {
+          console.log(`[DeckGLMapView] 📹 Camera frustum at zoom ${currentZoom.toFixed(1)}: Lat ${visibleBounds.minLat.toFixed(2)}° to ${visibleBounds.maxLat.toFixed(2)}°, Lon ${visibleBounds.minLon.toFixed(2)}° to ${visibleBounds.maxLon.toFixed(2)}°`)
+        }
+      }
 
       const groundModeInfo = isGroundModeActiveRef.current
         ? (groundModeCameraSettled ? ' (Ground Mode: all points)' : ' (Ground Mode: waiting for camera...)')
         : ''
-      console.log(`[DeckGLMapView] Zoom ${currentZoom.toFixed(1)}, subsample rate: 1:${subsampleRate}, averaging: ${useAveraging}${groundModeInfo}`)
+      const frustumInfo = visibleBounds ? ` (frustum culling enabled)` : ''
+      console.log(`[DeckGLMapView] Zoom ${currentZoom.toFixed(1)}, subsample rate: 1:${subsampleRate}, averaging: ${useAveraging}${groundModeInfo}${frustumInfo}`)
 
       const points: Array<{ position: [number, number, number], color: [number, number, number] }> = []
 
@@ -802,9 +825,9 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
             const lat = dataset.positions[i + 1]
             const alt = dataset.positions[i + 2] * 1000 // Convert km to meters
 
-            // Apply frustum culling in ground mode
+            // Apply camera frustum culling at zoom 10+ (all points within view, cull outside)
             if (visibleBounds) {
-              // Skip points outside visible bounds
+              // Skip points outside camera frustum bounds
               if (lat < visibleBounds.minLat || lat > visibleBounds.maxLat ||
                   lon < visibleBounds.minLon || lon > visibleBounds.maxLon) {
                 continue
@@ -962,7 +985,7 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       }
 
       deckOverlayRef.current.setProps({ layers })
-    }, [data, colorMode, colormap, pointSize, dataVersion, currentZoom, polygonVertices, completedPolygon, groundModeRectangles, pulseAnimation, isGroundModeActive, groundModeCameraSettled, getSubsampleRate])
+    }, [data, colorMode, colormap, pointSize, dataVersion, currentZoom, polygonVertices, completedPolygon, groundModeRectangles, pulseAnimation, isGroundModeActive, groundModeCameraSettled, getSubsampleRate, calculateCameraFrustumBounds])
 
     // Ground mode camera transition - create first-person ground view
     useEffect(() => {
