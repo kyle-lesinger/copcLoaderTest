@@ -939,10 +939,10 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         // Use fixed distance of 1.8 for best detail (decimation 1:2, ~2.3M points)
         const calculatedDistance = 1.8
 
-        // Always recenter and zoom to level 9 when data is loaded
+        // Always recenter and zoom to level 6 when data is loaded
         // Clear last map state to force recenter
         last2DMapStateRef.current = null
-        const dataZoom = 9
+        const dataZoom = 6
 
         console.log(`[PointCloudViewer] 🎯 Data loaded - centering at (${centerLng.toFixed(4)}, ${centerLat.toFixed(4)}), zoom ${dataZoom}`)
         console.log(`[PointCloudViewer] Data extent: ${extentLng.toFixed(2)}° lng × ${extentLat.toFixed(2)}° lat`)

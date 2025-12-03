@@ -693,9 +693,9 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       // This prevents the initial ground mode activation from rendering millions of points before the camera is positioned
       if (groundModeActive && cameraSettled) return 1
 
-      // At zoom level 10+, show all points within camera frustum (no subsampling)
+      // At zoom level 9+, show all points within camera frustum (no subsampling)
       // This will be applied per-point in the rendering loop
-      if (zoom >= 10) return 1
+      if (zoom >= 9) return 1
 
       // PROGRESSIVE LOD: As you zoom in, show more detail
       // Goal: Fast initial load, then progressive refinement as user zooms
@@ -707,19 +707,16 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
         if (zoom < 3) return 100       // 1% of points (~50K) - world view, very fast
         if (zoom < 5) return 50        // 2% of points (~100K) - continental view
         if (zoom < 7) return 25        // 4% of points (~200K) - regional view
-        if (zoom < 9) return 10        // 10% of points (~500K) - city view
-        return 5                       // 20% of points (~1M) at zoom 9-10
+        return 10                      // 10% of points (~500K) at zoom 7-9
       } else if (totalPoints > 1_000_000) {
         // Medium datasets (1M-5M points)
         if (zoom < 5) return 20        // 5% of points
         if (zoom < 7) return 10        // 10% of points
-        if (zoom < 9) return 5         // 20% of points
-        return 2                       // 50% of points at zoom 9-10
+        return 5                       // 20% of points at zoom 7-9
       } else {
         // Small datasets (<1M points)
         if (zoom < 7) return 5         // 20% of points
-        if (zoom < 9) return 2         // 50% of points
-        return 1                       // All points at zoom 9+
+        return 2                       // 50% of points at zoom 7-9
       }
     }, [])
 
@@ -750,12 +747,12 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       const useAveraging = isGroundModeActiveRef.current && groundModeCameraSettled ? false : currentZoom < 9 // No averaging in ground mode after camera settled
       const neighborCount = 40 // Number of neighbors to average
 
-      // CAMERA FRUSTUM CULLING: Enable at zoom 10+ to show all points within view
-      // At zoom 10+, subsample rate is 1 (all points), but we apply frustum culling
+      // CAMERA FRUSTUM CULLING: Enable at zoom 9+ to show all points within view
+      // At zoom 9+, subsample rate is 1 (all points), but we apply frustum culling
       // Points outside camera view are culled, points inside are shown at full detail
       let visibleBounds: { minLat: number, maxLat: number, minLon: number, maxLon: number } | null = null
 
-      if (currentZoom >= 10 && !isGroundModeActiveRef.current) {
+      if (currentZoom >= 9 && !isGroundModeActiveRef.current) {
         // Calculate camera frustum bounds
         visibleBounds = calculateCameraFrustumBounds()
         if (visibleBounds) {
