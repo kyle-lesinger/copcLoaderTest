@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { ColorMode, Colormap, DataRange, ViewMode, HeightFilter, SpatialBoundsFilter } from '../App'
 import { COPCLODManager, SpatialBounds, TimeRange } from '../utils/copcLoaderLOD'
@@ -975,7 +975,7 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         setError(err.message || 'Failed to load COPC files')
         setLoading(false)
       })
-  }, [files, pointSize, onGlobalDataRangeUpdate, onDataRangeUpdate, viewMode, colorMode, colormap, spatialBoundsFilter, testConfigMaxDepth, testConfigMaxNodes])
+  }, [files, pointSize, onGlobalDataRangeUpdate, onDataRangeUpdate, viewMode, spatialBoundsFilter, testConfigMaxDepth, testConfigMaxNodes])
 
   // Update LOD managers when spatial bounds filter changes
   useEffect(() => {
@@ -1021,7 +1021,9 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
   }, [heightFilter])
 
   // Update colors when color mode or colormap changes
-  useEffect(() => {
+  // Use useLayoutEffect to ensure colors are updated synchronously BEFORE paint
+  // This prevents DeckGLMapView from rendering with stale colors
+  useLayoutEffect(() => {
     if (!globalRanges.elevation || !globalRanges.intensity) return
 
     // Check if colors actually changed (not just viewMode)
@@ -1032,8 +1034,10 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
     // Check if we just switched TO 3D view from 2D
     const switchedTo3D = lastViewModeRef.current === '2d' && viewMode !== '2d'
 
-    // Update the color settings ref (viewMode ref is managed by view mode change effect)
-    lastColorSettingsRef.current = { colorMode, colormap }
+    // Early return if no changes needed
+    if (!colorSettingsChanged && !switchedTo3D) {
+      return
+    }
 
     if (viewMode === '2d') {
       // For 2D view, just update the data and increment dataVersion
@@ -1045,6 +1049,8 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         : globalRanges
 
       console.log('[PointCloudViewer] Updating colors for 2D view, colorMode:', colorMode, 'using ranges:', activeRanges)
+      console.log('[PointCloudViewer] dataRef.current length:', dataRef.current.length)
+      console.log('[PointCloudViewer] colorSettingsChanged:', colorSettingsChanged, 'switchedTo3D:', switchedTo3D)
 
       dataRef.current.forEach((data, index) => {
         const colors = data.colors
@@ -1077,8 +1083,15 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         console.log(`[PointCloudViewer] Updated colors for dataset ${index}, sample:`, [colors[0], colors[1], colors[2]])
       })
 
+      // Update the color settings ref AFTER processing the change
+      lastColorSettingsRef.current = { colorMode, colormap }
+
       // Increment dataVersion to notify DeckGLMapView that colors have changed
-      setDataVersion(prev => prev + 1)
+      console.log('[PointCloudViewer] Incrementing dataVersion from', dataVersion, 'to', dataVersion + 1)
+      setDataVersion(prev => {
+        console.log('[PointCloudViewer] setDataVersion callback: prev =', prev, ', returning', prev + 1)
+        return prev + 1
+      })
     } else if (colorSettingsChanged || switchedTo3D) {
       // For 3D view, use fast color-only update if:
       // 1. Colors actually changed, OR
@@ -1095,6 +1108,9 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
 
       // Update simple loader point clouds (fallback)
       updateColors3D()
+
+      // Update the color settings ref AFTER processing the change
+      lastColorSettingsRef.current = { colorMode, colormap }
     }
   }, [colorMode, colormap, globalRanges, filteredRanges, heightFilter, filterPointsByHeight, viewMode, updateColors3D])
 

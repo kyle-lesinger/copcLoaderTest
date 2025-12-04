@@ -108,7 +108,7 @@ const TEST_CONFIGS: Record<string, TestConfig> = {
     decimation: null,
     pointSize: 2,
     expectedFps: 50,
-    useCase: 'High detail'
+    useCase: 'Medium-High detail'
   },
   T006: {
     testId: 'T006',
@@ -122,7 +122,7 @@ const TEST_CONFIGS: Record<string, TestConfig> = {
     decimation: null,
     pointSize: 1.5,
     expectedFps: 40,
-    useCase: 'Very high detail'
+    useCase: 'High detail'
   },
   T007: {
     testId: 'T007',
@@ -164,7 +164,7 @@ const TEST_CONFIGS: Record<string, TestConfig> = {
     decimation: null,
     pointSize: 1.0,
     expectedFps: 20,
-    useCase: 'Maximum detail level 8'
+    useCase: 'High detail level 8'
   },
   T009A: {
     testId: 'T009A',
@@ -178,7 +178,7 @@ const TEST_CONFIGS: Record<string, TestConfig> = {
     decimation: null,
     pointSize: 0.8,
     expectedFps: 15,
-    useCase: 'Maximum detail level 9 - may be slow'
+    useCase: 'High detail level 9 - may be slow'
   },
   T009B: {
     testId: 'T009B',

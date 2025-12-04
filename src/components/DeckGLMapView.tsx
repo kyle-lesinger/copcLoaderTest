@@ -873,8 +873,9 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
       console.log('[DeckGLMapView] ColorMode:', colorMode, 'Colormap:', colormap, 'DataVersion:', dataVersion)
 
       // Create scatterplot layer with round, billboard-facing points
+      // Include dataVersion in layer ID to force recreation when colors change
       const pointCloudLayer = new ScatterplotLayer({
-        id: 'point-cloud',
+        id: `point-cloud-v${dataVersion}`,
         data: visiblePoints,
         getPosition: (d: any) => d.position,
         getFillColor: (d: any) => d.color,
@@ -885,7 +886,10 @@ const DeckGLMapView = forwardRef<DeckGLMapViewHandle, DeckGLMapViewProps>(
         opacity: 0.9,
         pickable: false,
         billboard: true, // Points always face camera for round appearance
-        antialiasing: true // Smooth edges for rounder appearance
+        antialiasing: true, // Smooth edges for rounder appearance
+        updateTriggers: {
+          getFillColor: [colorMode, colormap, dataVersion] // Force update when colormap or color data changes
+        }
       })
 
       const layers: any[] = [pointCloudLayer]
