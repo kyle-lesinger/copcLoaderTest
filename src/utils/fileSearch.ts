@@ -275,7 +275,7 @@ export function getAvailableFileList(fileMode: FileMode = 'tiled'): string[] {
 
   if (fileMode === 'single') {
     // DEPRECATED: Single files have corrupted octree cube bounds for globe-spanning data
-    const dataDirectory = '/data/final/tiled'
+    const dataDirectory = 'https://calipso-copc-data.s3.amazonaws.com/tiled'
     return [
       // CALIPSO Level 1 data from 2023-06-30
       `${dataDirectory}/CAL_LID_L1-Standard-V4-51.2023-06-30T16-44-43ZD.copc.laz`, // Day band
@@ -288,7 +288,7 @@ export function getAvailableFileList(fileMode: FileMode = 'tiled'): string[] {
     ]
   } else {
     // RECOMMENDED: Tiled files with valid octree cube bounds (4 latitude tiles per timestamp)
-    const dataDirectory = '/data/final/tiled'
+    const dataDirectory = 'https://calipso-copc-data.s3.amazonaws.com/tiled'
     const tiles = ['south', 'south_mid', 'north_mid', 'north'] // 4 latitude tiles
 
     // For each timestamp, we have 4 tiles (south, south_mid, north_mid, north)
