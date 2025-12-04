@@ -1296,6 +1296,14 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
         </div>
       )}
 
+      {/* Show loading state */}
+      {loading && (
+        <div className="stats-overlay">
+          ⏱️ Loading...
+        </div>
+      )}
+
+      {/* Show stats when data is loaded */}
       {!loading && !error && (stats.files > 0 || lodManagersRef.current.length > 0) && (
         <div className="stats-overlay">
           {(() => {
@@ -1315,12 +1323,6 @@ export default function PointCloudViewer({ files, colorMode, colormap, pointSize
             // For simple loader mode, show total points
             return `${stats.points.toLocaleString()} points • ${stats.files} file${stats.files !== 1 ? 's' : ''}`
           })()}
-        </div>
-      )}
-
-      {!loading && !error && stats.files === 0 && lodManagersRef.current.length === 0 && (
-        <div className="stats-overlay">
-          No data loaded. Configure filters and load COPC files to visualize.
         </div>
       )}
 
